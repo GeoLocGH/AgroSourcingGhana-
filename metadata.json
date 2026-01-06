@@ -1,0 +1,7 @@
+{
+  "name": "AgroSourcingGhana",
+  "description": "An Agricultural Sourcing app for Ghanaian and African farmers providing hyper-local weather forecasts, market prices, AI-powered pest diagnosis, Farming Tools and Equipment Rentals & Sharing, and marketplace for Farm produce to improve profitability and food security.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
