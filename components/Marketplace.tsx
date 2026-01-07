@@ -71,10 +71,9 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'createdAt' | 'likes' | 'userHasLiked'>>({ 
-        name: '', 
+    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'created_at' | 'likes' | 'userHasLiked' | 'owner_id' | 'seller_name'>>({ 
+        title: '', 
         category: 'Seeds', 
-        seller: user?.name || '', 
         price: 0,
         usage_instructions: '',
         storage_recommendations: '',
@@ -124,7 +123,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             const { data: itemsData, error: itemsError } = await supabase
                 .from('marketplace')
                 .select('*')
-                .order('createdAt', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (itemsError) {
                 console.error("Error fetching items:", JSON.stringify(itemsError));
@@ -264,8 +263,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                         .addTo(map)
                         .bindPopup(`
                             <div class="p-1">
-                                <h3 class="font-bold text-sm">${item.name}</h3>
-                                <p class="text-xs text-gray-600">${item.seller}</p>
+                                <h3 class="font-bold text-sm">${item.title}</h3>
+                                <p class="text-xs text-gray-600">${item.seller_name}</p>
                                 <p class="text-sm font-bold text-green-700">GHS ${item.price.toFixed(2)}</p>
                             </div>
                         `);
@@ -292,9 +291,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     
     const clearNewItemForm = () => {
         setNewItem({ 
-            name: '', 
+            title: '', 
             category: 'Seeds', 
-            seller: user?.name || '', 
             price: 0, 
             usage_instructions: '', 
             storage_recommendations: '',
@@ -400,7 +398,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
     const handleAddItem = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newItem.name || !newItem.seller || newItem.price <= 0) {
+        if (!newItem.title || newItem.price <= 0) {
             setError('Please fill in all fields correctly.');
             return;
         }
@@ -416,7 +414,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         try {
             if (newItemFiles.length > 0) {
                 const uploadPromises = newItemFiles.map((file, index) => 
-                    uploadUserFile(user.uid!, file, 'marketplace', '', `Product: ${newItem.name} (${index+1})`)
+                    uploadUserFile(user.uid!, file, 'marketplace', '', `Product: ${newItem.title} (${index+1})`)
                 );
                 const uploadedFiles = await Promise.all(uploadPromises);
                 imageUrls = uploadedFiles.map(f => f.file_url);
@@ -426,13 +424,23 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                     : ['https://placehold.co/600x400/eeeeee/cccccc?text=No+Image'];
             }
 
+            // Updated to match schema: title, owner_id, seller_name, image_urls
             const newItemData = {
-                ...newItem,
+                title: newItem.title,
+                price: newItem.price,
+                category: newItem.category,
+                usage_instructions: newItem.usage_instructions,
+                storage_recommendations: newItem.storage_recommendations,
+                location_lat: newItem.location_lat,
+                location_lng: newItem.location_lng,
+                location_name: newItem.location_name,
                 image_urls: imageUrls,
-                seller_id: user.uid,
+                owner_id: user.uid,
+                seller_name: user.name || 'Anonymous',
                 seller_email: user.email,
                 seller_phone: user.phone || '',
-                createdAt: new Date().toISOString()
+                merchant_id: user.merchant_id || null
+                // Note: We don't send created_at, let DB default to now()
             };
 
             const { error: dbError } = await supabase.from('marketplace').insert([newItemData]);
@@ -441,7 +449,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
             setIsFormVisible(false);
             clearNewItemForm();
-            addNotification({ title: 'Item Listed', message: `${newItem.name} added successfully.`, type: 'market' });
+            addNotification({ title: 'Item Listed', message: `${newItem.title} added successfully.`, type: 'market' });
         } catch (error: any) {
             console.error("Error adding item:", error);
             setError(`Failed to list item. Error: ${error.message || 'Unknown'}`);
@@ -466,7 +474,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         if(!itemToEdit) return;
 
         try {
-            const { id, likes, userHasLiked, ...dataToUpdate } = itemToEdit;
+            const { id, likes, userHasLiked, created_at, ...dataToUpdate } = itemToEdit;
             
             const { error } = await supabase
                 .from('marketplace')
@@ -476,7 +484,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             if (error) throw error;
             
             handleCloseEditModal();
-            addNotification({ title: 'Item Updated', message: `${itemToEdit.name} updated successfully.`, type: 'market' });
+            addNotification({ title: 'Item Updated', message: `${itemToEdit.title} updated successfully.`, type: 'market' });
         } catch (error) {
             console.error("Error updating item:", error);
             setError("Failed to update item.");
@@ -505,7 +513,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             if (error) throw error;
 
             handleCloseDeleteModal();
-            addNotification({ title: 'Item Deleted', message: `${itemToDelete.name} has been removed.`, type: 'market' });
+            addNotification({ title: 'Item Deleted', message: `${itemToDelete.title} has been removed.`, type: 'market' });
         } catch (error) {
             console.error("Error deleting item:", error);
             addNotification({ title: 'Error', message: 'Failed to delete item.', type: 'market' });
@@ -518,12 +526,18 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             return;
         }
 
-        if (!item.seller_id) {
+        // Check if seller has disabled messaging
+        if (item.messaging_enabled === false) {
              addNotification({ type: 'market', title: 'Seller Unavailable', message: 'This seller has not enabled messaging yet.', view: 'MARKETPLACE' });
              return;
         }
 
-        if (item.seller_id === user.uid) {
+        if (!item.owner_id) {
+             addNotification({ type: 'market', title: 'Seller Unavailable', message: 'This seller has not enabled messaging yet.', view: 'MARKETPLACE' });
+             return;
+        }
+
+        if (item.owner_id === user.uid) {
              addNotification({ type: 'market', title: 'Cannot Chat', message: 'You cannot message yourself.', view: 'MARKETPLACE' });
              return;
         }
@@ -532,9 +546,9 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
         setChatContext({
             id: chatId,
-            name: item.seller,
-            subject: item.name,
-            participants: [user.uid, item.seller_id]
+            name: item.seller_name,
+            subject: item.title,
+            participants: [user.uid, item.owner_id]
         });
         setIsChatVisible(true);
     };
@@ -549,7 +563,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         setIsSellerProfileOpen(true);
         
         let sellerInfo: Partial<User> = {
-            name: item.seller,
+            name: item.seller_name,
             email: item.seller_email,
             phone: item.seller_phone,
             type: 'seller'
@@ -559,7 +573,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             const { data, error } = await supabase
                 .from('users')
                 .select('*')
-                .eq('name', item.seller)
+                .eq('name', item.seller_name)
                 .single();
 
             if (data) {
@@ -654,8 +668,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             }
             if (searchTerm) {
                 const lowerSearch = searchTerm.toLowerCase();
-                const nameMatch = item.name.toLowerCase().includes(lowerSearch);
-                const sellerMatch = item.seller.toLowerCase().includes(lowerSearch);
+                const nameMatch = item.title.toLowerCase().includes(lowerSearch);
+                const sellerMatch = item.seller_name.toLowerCase().includes(lowerSearch);
                 if (!nameMatch && !sellerMatch) {
                     return false;
                 }
@@ -671,10 +685,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             case 'Price: High to Low':
                 return b.price - a.price;
             case 'Name: A-Z':
-                return a.name.localeCompare(b.name);
+                return a.title.localeCompare(b.title);
             case 'Newest':
             default:
-                if (a.createdAt && b.createdAt) return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                if (a.created_at && b.created_at) return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
                 return 0; 
         }
     });
@@ -700,10 +714,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
     const canManageItem = (item: MarketplaceItem) => {
         if (!user) return false;
-        return user.type === 'admin' || item.seller_id === user.uid || (item.seller === user.name && !item.seller_id);
+        return user.type === 'admin' || item.owner_id === user.uid || (item.seller_name === user.name && !item.owner_id);
     }
 
-    const myKeyListings = marketplaceItems.filter(item => item.seller_id === user?.uid || item.seller === (user?.name || 'Agro Ghana Ltd.'));
+    const myKeyListings = marketplaceItems.filter(item => item.owner_id === user?.uid || item.seller_name === (user?.name || 'Agro Ghana Ltd.'));
 
     return (
         <>
@@ -778,11 +792,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                         </div>
                         <form onSubmit={handleAddItem}>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input type="text" name="name" placeholder="Item Name" value={newItem.name} onChange={(e) => handleInputChange(e)} required className="mt-1 block w-full px-3 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                <input type="text" name="title" placeholder="Item Name" value={newItem.title} onChange={(e) => handleInputChange(e)} required className="mt-1 block w-full px-3 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 <select name="category" value={newItem.category} onChange={(e) => handleInputChange(e)} className="mt-1 block w-full pl-3 pr-10 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
                                     {categories.filter(c => c.name !== 'All').map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                                 </select>
-                                <input type="text" name="seller" placeholder="Your Name/Business" value={newItem.seller} onChange={(e) => handleInputChange(e)} required className="mt-1 block w-full px-3 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 <input type="number" name="price" placeholder="Price (GHS)" value={newItem.price} onChange={(e) => handleInputChange(e)} required className="mt-1 block w-full px-3 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 
                                 <div className="md:col-span-2">
@@ -863,7 +876,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Item Name</label>
-                                    <input type="text" name="name" value={itemToEdit.name} onChange={(e) => handleInputChange(e, true)} required className="mt-1 block w-full px-3 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                    <input type="text" name="title" value={itemToEdit.title} onChange={(e) => handleInputChange(e, true)} required className="mt-1 block w-full px-3 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Price (GHS)</label>
@@ -888,7 +901,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                             </div>
                             <h3 className="text-xl font-bold text-gray-800 mb-2">Confirm Deletion</h3>
                             <p className="text-gray-600 mb-6">
-                                Are you sure you want to delete <span className="font-semibold text-gray-800">{itemToDelete.name}</span>? This action cannot be undone.
+                                Are you sure you want to delete <span className="font-semibold text-gray-800">{itemToDelete.title}</span>? This action cannot be undone.
                             </p>
                             <div className="flex w-full gap-3">
                                 <Button onClick={handleCloseDeleteModal} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800">Cancel</Button>
@@ -955,9 +968,9 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                     myKeyListings.map(item => (
                                         <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                                             <div className="flex items-center gap-3">
-                                                <img src={item.image_urls?.[0] || 'https://placehold.co/50'} alt={item.name} className="w-10 h-10 rounded object-cover" />
+                                                <img src={item.image_urls?.[0] || 'https://placehold.co/50'} alt={item.title} className="w-10 h-10 rounded object-cover" />
                                                 <div>
-                                                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                                                    <p className="text-sm font-medium text-gray-900">{item.title}</p>
                                                     <p className="text-xs text-gray-500">GHS {item.price.toFixed(2)}</p>
                                                 </div>
                                             </div>
@@ -1134,16 +1147,16 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
                                             <img 
                                                 src={getDisplayImage(item) || 'https://placehold.co/600x400'} 
-                                                alt={item.name} 
+                                                alt={item.title} 
                                                 className="w-full h-full object-cover cursor-pointer"
                                                 onClick={() => handleToggleDetails(item.id)}
                                             />
                                          </div>
                                          <div className="flex justify-between items-start mb-2">
                                             <div>
-                                                <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{item.name}</h3>
+                                                <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{item.title}</h3>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-sm text-blue-600 hover:underline cursor-pointer font-medium" onClick={(e) => handleSellerClick(e, item)}>{item.seller}</p>
+                                                    <p className="text-sm text-blue-600 hover:underline cursor-pointer font-medium" onClick={(e) => handleSellerClick(e, item)}>{item.seller_name}</p>
                                                     {(item.likes || 0) > 0 && (
                                                         <span className="text-xs text-red-500 font-medium flex items-center gap-0.5">
                                                             <HeartIcon className="w-3 h-3" filled={true} /> {item.likes}

@@ -137,7 +137,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
           }
 
           const newUserDB = {
-              uid: userId,
+              id: userId, // Use 'id' matching DB schema
               name: regName,
               email: regEmail,
               phone: regPhone,
@@ -150,7 +150,8 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               console.error("DB Insert Error", JSON.stringify(dbError));
           }
           
-          onLogin({ ...newUserDB, photo_url: profilePhotoUrl } as User);
+          // Map 'id' back to 'uid' for frontend state
+          onLogin({ ...newUserDB, uid: userId, photo_url: profilePhotoUrl } as User);
           closeModal();
       } else {
           // 3. Confirmation Required

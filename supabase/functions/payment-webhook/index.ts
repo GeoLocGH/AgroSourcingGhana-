@@ -1,7 +1,8 @@
-
 // Follow this setup guide to deploy: https://supabase.com/docs/guides/functions/deploy
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+
+declare const Deno: any;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,8 +13,8 @@ serve(async (req) => {
   // 1. Create Supabase Client with Admin Context
   // NOTE: Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars to be set in your Supabase project
   const supabaseClient = createClient(
-    (Deno as any).env.get('SUPABASE_URL') ?? '',
-    (Deno as any).env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
   // 2. Handle CORS preflight
@@ -43,7 +44,7 @@ serve(async (req) => {
     }
 
     // Determine if status should be 'completed'
-    // Common success codes: 'success', '00', 'completed', 'paid'
+    // Common success codes: 'success', 'successful', 'completed', 'paid', '00'
     const isSuccess = ['success', 'successful', 'completed', 'paid', '00'].includes(String(gatewayStatus).toLowerCase());
     const newStatus = isSuccess ? 'completed' : 'failed';
 

@@ -117,27 +117,29 @@ const App: React.FC = () => {
           // Ensure merchant_id is read from metadata as column might be missing
           const merchantIdFromAuth = meta.merchant_id || '';
 
-          // 1. Try to get existing profile
+          // 1. Try to get existing profile - query by 'id' not 'uid'
           const { data: userData, error } = await supabase
               .from('users')
               .select('*')
-              .eq('uid', session.user.id)
+              .eq('id', session.user.id)
               .single();
 
           if (userData) {
               // Merge DB data with Auth Metadata (prefer Auth for photo/merchant if DB is empty/missing column)
               setUser({
                   ...userData,
+                  uid: userData.id, // Map DB 'id' to frontend 'uid'
                   photo_url: userData.photo_url || photoFromAuth,
-                  merchant_id: userData.merchant_id || merchantIdFromAuth
+                  merchant_id: userData.merchant_id || merchantIdFromAuth,
+                  messaging_enabled: userData.messaging_enabled
               } as User);
           } else {
               // 2. Profile missing (First login after email confirm?), create it from metadata
               const type = meta.user_type || (session.user.email?.toLowerCase().includes('admin') ? 'admin' : 'buyer');
               
-              // Prepare DB Object (Exclude photo_url AND merchant_id to prevent Schema Error)
+              // Prepare DB Object (Use 'id', exclude photo_url/merchant_id to prevent Schema Error)
               const newUserDB = {
-                  uid: session.user.id,
+                  id: session.user.id,
                   name: meta.full_name || 'User',
                   email: session.user.email || '',
                   phone: meta.phone || '',
@@ -149,8 +151,10 @@ const App: React.FC = () => {
               
               const fullUser: User = {
                   ...newUserDB,
+                  uid: session.user.id, // Ensure frontend keeps uid
                   photo_url: photoFromAuth,
-                  merchant_id: merchantIdFromAuth
+                  merchant_id: merchantIdFromAuth,
+                  messaging_enabled: true
               };
 
               if (!insertError) {

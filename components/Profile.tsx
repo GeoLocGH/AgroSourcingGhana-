@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon } from './common/icons';
+import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon } from './common/icons';
 import type { User, UserFile, MarketplaceItem, EquipmentItem, View, Transaction } from '../types';
 import { supabase } from '../services/supabase';
 import { getUserFiles, deleteUserFile, uploadUserFile, getFreshDownloadUrl } from '../services/storageService';
@@ -40,7 +40,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
     name: user?.name || '',
     phone: user?.phone || '',
     merchant_id: user?.merchant_id || '',
-    photo_url: user?.photo_url || ''
+    photo_url: user?.photo_url || '',
+    messaging_enabled: user?.messaging_enabled ?? true
   });
   
   const [newPhoto, setNewPhoto] = useState<File | null>(null);
@@ -53,7 +54,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
         name: user.name || '',
         phone: user.phone || '',
         merchant_id: user.merchant_id || '',
-        photo_url: user.photo_url || ''
+        photo_url: user.photo_url || '',
+        messaging_enabled: user.messaging_enabled ?? true
       });
       fetchUserFiles();
       fetchMyProperties();
@@ -92,7 +94,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       if (!user || !user.uid) return;
       setLoadingListings(true);
       try {
-          const { data: marketData } = await supabase.from('marketplace').select('*').eq('seller_id', user.uid);
+          // Updated to use owner_id
+          const { data: marketData } = await supabase.from('marketplace').select('*').eq('owner_id', user.uid);
           setMyListings((marketData as MarketplaceItem[]) || []);
 
           const { data: equipData } = await supabase.from('equipment').select('*').eq('owner_id', user.uid);
@@ -161,10 +164,12 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
           const updates = {
               name: formData.name,
               phone: formData.phone,
-              // photo_url and merchant_id excluded from DB update to avoid Schema Error
+              messaging_enabled: formData.messaging_enabled
+              // photo_url and merchant_id excluded from DB update to avoid Schema Error if they don't exist
           };
 
-          const { error } = await supabase.from('users').update(updates).eq('uid', user.uid);
+          // Use 'id' instead of 'uid' for the query
+          const { error } = await supabase.from('users').update(updates).eq('id', user.uid);
           if (error) throw error;
           
           // Store photo URL and merchant_id in Auth Metadata instead
@@ -239,6 +244,12 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                         <h3 className="text-xl font-bold text-gray-900">{user.name}</h3>
                         <p className="text-sm text-gray-500 mb-2">{user.email}</p>
                         <span className="text-xs font-bold uppercase bg-green-100 text-green-800 px-3 py-1 rounded-full">{user.type}</span>
+                        <div className="mt-4 flex items-center justify-center gap-2">
+                            <MessageSquareIcon className={`w-4 h-4 ${user.messaging_enabled ? 'text-green-600' : 'text-gray-400'}`} />
+                            <span className={`text-xs ${user.messaging_enabled ? 'text-green-700 font-medium' : 'text-gray-500'}`}>
+                                Messaging {user.messaging_enabled ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </div>
                         <div className="mt-6 w-full space-y-2">
                             <Button onClick={() => setIsEditing(true)} className="w-full text-sm bg-blue-600 hover:bg-blue-700">Edit Profile</Button>
                         </div>
@@ -250,6 +261,16 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                            {user.type === 'seller' && (
                                <input value={formData.merchant_id} onChange={e => setFormData({...formData, merchant_id: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Merchant ID" />
                            )}
+                           <div className="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-200">
+                               <input 
+                                    type="checkbox" 
+                                    id="messagingToggle" 
+                                    checked={formData.messaging_enabled} 
+                                    onChange={e => setFormData({...formData, messaging_enabled: e.target.checked})}
+                                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                />
+                                <label htmlFor="messagingToggle" className="text-sm text-gray-700 cursor-pointer select-none">Allow Messaging</label>
+                           </div>
                            <div className="flex gap-2">
                                <Button type="submit" isLoading={loading} className="flex-1 text-sm">Save</Button>
                                <Button onClick={() => setIsEditing(false)} className="flex-1 bg-gray-200 text-gray-800 text-sm">Cancel</Button>
@@ -277,6 +298,12 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                               {user.merchant_id && (
                                   <div><label className="text-xs text-gray-500 uppercase">Merchant ID</label><p className="font-medium">{user.merchant_id}</p></div>
                               )}
+                              <div>
+                                  <label className="text-xs text-gray-500 uppercase">Messaging</label>
+                                  <p className={`font-medium ${user.messaging_enabled ? 'text-green-600' : 'text-red-500'}`}>
+                                      {user.messaging_enabled ? 'Active' : 'Disabled'}
+                                  </p>
+                              </div>
                               <div className="md:col-span-2"><label className="text-xs text-gray-500 uppercase">User ID</label><p className="font-mono text-xs bg-gray-100 p-2 rounded">{user.uid}</p></div>
                           </div>
                       )}
@@ -367,7 +394,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                       
                       {activeTab === 'LISTINGS' && (
                            <div>
-                               {myListings.map(item => <p key={item.id} className="border-b py-2">{item.name} - GHS {item.price}</p>)}
+                               {myListings.map(item => <p key={item.id} className="border-b py-2">{item.title} - GHS {item.price}</p>)}
                                {myListings.length === 0 && !loadingListings && <p className="text-gray-400 text-center py-4">No listings found.</p>}
                            </div>
                       )}

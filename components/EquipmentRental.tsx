@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { EquipmentType, EquipmentItem, Message, User, Inquiry } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, UploadIcon, PencilIcon, TrashIcon, Spinner } from './common/icons';
+import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { fileToDataUri } from '../utils';
 import { uploadUserFile } from '../services/storageService';
@@ -13,6 +13,7 @@ interface ChatContext {
     id: string;
     name: string;
     subject: string;
+    participants?: string[];
 }
 
 interface EquipmentRentalProps {
@@ -60,24 +61,33 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [chatContext, setChatContext] = useState<ChatContext | null>(null);
-  const [conversations, setConversations] = useState<Record<string, Message[]>>({});
+  const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
     const fetchItems = async () => {
-        const { data, error } = await supabase
-            .from('equipment')
-            .select('*')
-            .order('created_at', { ascending: false });
-        
-        if (error) {
-            console.error("Error fetching equipment:", error);
-        } else {
-            setItems(data as EquipmentItem[]);
+        try {
+            // Revert to standard 'created_at' as we are relying on default timestamps now
+            const { data, error } = await supabase
+                .from('equipment')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) {
+                console.error("Error fetching equipment:", JSON.stringify(error, null, 2));
+                // If the error suggests column doesn't exist, we might try fallback or just return empty
+                setItems([]);
+            } else {
+                setItems((data as EquipmentItem[]) || []);
+            }
+        } catch (err) {
+            console.error("Unexpected error fetching equipment:", err);
+            setItems([]);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const subscription = supabase
@@ -91,7 +101,42 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversations, chatContext]);
+  }, [messages, isChatVisible]);
+
+  // Chat Listener
+  useEffect(() => {
+    if (!chatContext?.id || !isChatVisible) return;
+
+    const fetchMessages = async () => {
+        const { data, error } = await supabase
+            .from('chats')
+            .select('*')
+            .eq('id', chatContext.id)
+            .single();
+        
+        if (data && data.messages) {
+             const mappedMessages: Message[] = data.messages.map((msg: any, index: number) => ({
+                id: index,
+                sender: msg.senderId === user?.uid ? 'user' : 'seller',
+                text: msg.text,
+                timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }));
+            setMessages(mappedMessages);
+        } else {
+            setMessages([]);
+        }
+    };
+
+    const subscription = supabase
+        .channel(`chat:${chatContext.id}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chats', filter: `id=eq.${chatContext.id}` }, fetchMessages)
+        .subscribe();
+
+    fetchMessages();
+
+    return () => { subscription.unsubscribe(); };
+  }, [chatContext, isChatVisible, user?.uid]);
+
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -148,12 +193,57 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   };
 
   const handleContact = (item: EquipmentItem) => {
+      if (!user) {
+          onRequireLogin();
+          return;
+      }
+      
+      if (item.owner_id === user.uid) {
+           addNotification({ type: 'rental', title: 'Cannot Chat', message: 'You cannot message yourself.', view: 'RENTAL' });
+           return;
+      }
+
+      // Create a unique Chat ID for this user-item pair
+      const chatId = `${item.id}_${user.uid}`;
+
       setChatContext({
-          id: item.id,
+          id: chatId,
           name: item.owner,
-          subject: item.name
+          subject: item.name,
+          participants: [user.uid!, item.owner_id || '']
       });
       setIsChatVisible(true);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!currentMessage.trim() || !chatContext || !user?.uid) return;
+
+        const newMessage = {
+            senderId: user.uid,
+            text: currentMessage,
+            timestamp: Date.now()
+        };
+
+        try {
+            const { data: currentChat } = await supabase.from('chats').select('messages').eq('id', chatContext.id).single();
+            const existingMessages = currentChat?.messages || [];
+            
+            const { error } = await supabase.from('chats').upsert({
+                id: chatContext.id,
+                participants: chatContext.participants,
+                subject: chatContext.subject,
+                last_updated: new Date().toISOString(),
+                messages: [...existingMessages, newMessage]
+            });
+
+            if (error) throw error;
+
+            setCurrentMessage('');
+        } catch (err) {
+            console.error("Error sending message:", err);
+            addNotification({ type: 'rental', title: 'Error', message: 'Failed to send message.', view: 'RENTAL' });
+        }
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,7 +289,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           try {
               if (user && user.uid && itemImageFile) {
                   const uploadedFile = await uploadUserFile(user.uid, itemImageFile, 'rental', '', `Rental: ${currentItem.name}`);
-                  // Fix: Changed download_url to file_url
                   imageUrl = uploadedFile.file_url;
               }
 
@@ -220,6 +309,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                  // Insert new item with ownerId
                  if (!user?.uid) throw new Error("User ID missing");
 
+                 // Ensure we use 'created_at' to match schema conventions or default
+                 // We don't send created_at here, let DB default
                  const { error } = await supabase.from('equipment').insert([{
                     name: currentItem.name,
                     type: currentItem.type as EquipmentType,
@@ -229,17 +320,16 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     price_per_day: Number(currentItem.price_per_day),
                     image_url: imageUrl,
                     available: true,
-                    description: currentItem.description || '',
-                    created_at: new Date().toISOString()
+                    description: currentItem.description || ''
                 }]);
                 
                 if (error) throw error;
                 addNotification({ type: 'rental', title: 'Equipment Listed', message: 'Listed successfully.', view: 'RENTAL' });
               }
               setIsFormVisible(false);
-          } catch (error) {
+          } catch (error: any) {
               console.error("Error submitting equipment:", error);
-              addNotification({ type: 'rental', title: 'Error', message: 'Failed to save equipment.', view: 'RENTAL' });
+              addNotification({ type: 'rental', title: 'Error', message: `Failed to save equipment: ${error.message}`, view: 'RENTAL' });
           } finally {
               setIsSubmitting(false);
           }
@@ -331,6 +421,12 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 </div>
               </div>
             ))}
+            {filteredItems.length === 0 && (
+                <div className="col-span-full text-center py-10 text-gray-500">
+                    <TractorIcon className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    No equipment found. Be the first to list one!
+                </div>
+            )}
           </div>
       )}
 
@@ -376,6 +472,49 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           </div>
       )}
 
+      {/* Chat Modal */}
+      {isChatVisible && chatContext && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-lg w-full max-w-md flex flex-col h-[70vh]">
+                  <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
+                      <div>
+                          <h3 className="font-bold text-lg text-gray-800">Chat with {chatContext.name}</h3>
+                          <p className="text-sm text-gray-500">Regarding: {chatContext.subject}</p>
+                      </div>
+                      <button onClick={() => setIsChatVisible(false)} className="text-gray-500 hover:text-gray-800 bg-white p-1 rounded-full shadow-sm">
+                          <XIcon className="w-5 h-5" />
+                      </button>
+                  </div>
+                  <div className="flex-grow p-4 overflow-y-auto bg-gray-50 space-y-4">
+                      {messages.length > 0 ? messages.map((msg, index) => (
+                          <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`max-w-xs lg:max-w-md p-3 rounded-lg shadow-sm ${msg.sender === 'user' ? 'bg-green-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'}`}>
+                                  <p className="text-sm">{msg.text}</p>
+                                  <p className={`text-[10px] mt-1 ${msg.sender === 'user' ? 'text-green-100' : 'text-gray-400'} text-right`}>{msg.timestamp}</p>
+                              </div>
+                          </div>
+                      )) : (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                              <MessageSquareIcon className="w-12 h-12 mb-2 opacity-50" />
+                              <p className="text-sm">Start a conversation about this rental!</p>
+                          </div>
+                      )}
+                      <div ref={chatEndRef} />
+                  </div>
+                  <form onSubmit={handleSendMessage} className="p-3 border-t bg-white rounded-b-xl flex gap-2">
+                      <input 
+                          type="text"
+                          value={currentMessage}
+                          onChange={(e) => setCurrentMessage(e.target.value)}
+                          placeholder="Type your message..."
+                          className="flex-grow px-4 py-2 text-sm border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      />
+                      <Button type="submit" className="px-4 py-2 rounded-full text-sm">Send</Button>
+                  </form>
+              </div>
+          </div>
+      )}
+
       {/* Forms and Modals */}
       {isFormVisible && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
@@ -384,8 +523,11 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                    <form onSubmit={handleSubmitItem}>
                        {/* Inputs for name, type, price, owner, location, description */}
                        <input type="text" value={currentItem.name} onChange={e => setCurrentItem({...currentItem, name: e.target.value})} className="w-full mb-2 p-2 border rounded" placeholder="Name" required />
-                       <input type="number" value={currentItem.price_per_day} onChange={e => setCurrentItem({...currentItem, price_per_day: Number(e.target.value)})} className="w-full mb-2 p-2 border rounded" placeholder="Price" required />
-                       <input type="file" ref={fileInputRef} onChange={handleImageChange} className="mb-2" />
+                       <input type="number" value={currentItem.price_per_day} onChange={e => setCurrentItem({...currentItem, price_per_day: Number(e.target.value)})} className="w-full mb-2 p-2 border rounded" placeholder="Price (GHS)" required />
+                       <div className="mb-2">
+                           <label className="block text-sm text-gray-600 mb-1">Image</label>
+                           <input type="file" ref={fileInputRef} onChange={handleImageChange} className="w-full" accept="image/*" />
+                       </div>
                        <Button type="submit" isLoading={isSubmitting}>Save</Button>
                        <Button onClick={() => setIsFormVisible(false)} className="bg-gray-200 text-gray-800 ml-2">Cancel</Button>
                    </form>
