@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import Weather from './components/Weather';
 import PriceAlerts from './components/PriceAlerts';
@@ -294,9 +293,20 @@ const App: React.FC = () => {
              {/* Floating Header Banner */}
              <div className="max-w-5xl mx-auto bg-green-800 text-white shadow-2xl rounded-t-xl p-4 sm:px-6 flex justify-between items-center relative z-30 min-h-[88px]">
                  {/* Title Section */}
-                 <div onClick={() => setActiveView('DASHBOARD')} className="cursor-pointer hover:opacity-90 transition-opacity z-10 relative">
-                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight">AgroSourcingGhana℠</h1>
-                  <p className="text-xs sm:text-sm text-green-100">Localized, Actionable Insights for Farmers</p>
+                 <div className="z-10 relative flex flex-col">
+                  <button 
+                    onClick={() => setActiveView('DASHBOARD')} 
+                    className="hover:opacity-90 transition-opacity text-left group"
+                  >
+                      <h1 className="text-xl sm:text-2xl font-bold tracking-tight group-hover:underline decoration-2 underline-offset-2">AgroSourcingGhana℠</h1>
+                  </button>
+                  <p className="text-xs sm:text-sm text-green-100 cursor-default">Localized, Actionable Insights for Farmers</p>
+                  <button 
+                    onClick={() => setActiveView('MARKETPLACE')} 
+                    className="text-xs sm:text-sm text-yellow-300 font-bold mt-0.5 tracking-wide hover:underline hover:text-yellow-200 text-left transition-colors"
+                  >
+                    Buy and Sell your Agricultural Products!
+                  </button>
                 </div>
 
                 {/* Central Logo Placeholder */}
