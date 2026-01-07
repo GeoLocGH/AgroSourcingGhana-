@@ -2,418 +2,636 @@
 import React, { useState, useEffect } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { WalletIcon, BanknotesIcon, LightningIcon, ShieldCheckIcon, ShoppingCartIcon, QrCodeIcon, CameraIcon, ArrowDownIcon, ArrowUpIcon, Spinner, PaperClipIcon, CheckCircleIcon } from './common/icons';
+import { 
+    WalletIcon, 
+    BanknotesIcon, 
+    LightningIcon, 
+    ShieldCheckIcon, 
+    QrCodeIcon, 
+    ArrowDownIcon, 
+    ArrowUpIcon, 
+    Spinner, 
+    BankIcon,
+    ArrowLeftIcon,
+    HomeIcon,
+    GridIcon,
+    ClockIcon,
+    ArrowRightIcon,
+    UserCircleIcon,
+    CameraIcon,
+    CheckCircleIcon
+} from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import type { User, Transaction } from '../types';
 import { initiatePayment, getWalletBalance, getTransactionHistory } from '../services/paymentService';
 import { parsePaymentSMS } from '../services/geminiService';
 import { supabase } from '../services/supabase';
 
-// Updated to match the requested provider types
-const networks = [
-  "MTN",
-  "Telecel",
-  "AirtelTigo"
+// --- Constants & Mock Data ---
+
+const NETWORKS = ["MTN", "Telecel", "AirtelTigo"];
+const BANKS = ["GCB Bank", "Ecobank", "Fidelity", "Stanbic", "Zenith", "Absa"];
+
+const BILL_PROVIDERS = [
+    { id: 'ecg', name: 'ECG Prepaid', category: 'Utilities', icon: <LightningIcon className="w-5 h-5 text-yellow-600"/> },
+    { id: 'gwcl', name: 'Ghana Water', category: 'Utilities', icon: <div className="w-5 h-5 bg-blue-500 rounded-full text-white flex items-center justify-center text-xs font-bold">W</div> },
+    { id: 'dstv', name: 'DSTV', category: 'TV', icon: <div className="w-5 h-5 bg-blue-800 rounded-full text-white flex items-center justify-center text-xs font-bold">TV</div> },
+    { id: 'gotv', name: 'GOtv', category: 'TV', icon: <div className="w-5 h-5 bg-green-600 rounded-full text-white flex items-center justify-center text-xs font-bold">GO</div> },
+    { id: 'school', name: 'School Fees', category: 'Fees', icon: <div className="w-5 h-5 bg-orange-500 rounded-full text-white flex items-center justify-center text-xs font-bold">Sch</div> },
 ];
 
-const banks = [
-    "GCB Bank",
-    "Ecobank Ghana",
-    "Fidelity Bank",
-    "Stanbic Bank",
-    "Zenith Bank",
-    "Absa Bank"
+const INSURANCE_PLANS = [
+    { id: 'crop_basic', name: 'Crop Shield Basic', premium: 15, coverage: 2000, desc: 'Covers drought & pests' },
+    { id: 'crop_pro', name: 'Crop Shield Pro', premium: 45, coverage: 8000, desc: 'Full harvest protection' },
+    { id: 'health_fam', name: 'Farmer Health', premium: 30, coverage: 5000, desc: 'Medical & accident cover' },
 ];
+
+// --- Types ---
 
 interface LinkedAccount {
   id: string;
   type: 'BANK' | 'MOMO';
   provider: string;
-  accountNumber: string; // or Phone Number
+  accountNumber: string;
   accountName: string;
 }
+
+type WalletView = 'HOME' | 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER' | 'BILLS' | 'LOANS' | 'INSURANCE' | 'QR' | 'HISTORY' | 'LINK_ACCOUNT' | 'VERIFY_SMS' | 'SETTINGS';
 
 interface DigitalWalletProps {
     user: User | null;
 }
 
+// --- Component ---
+
 const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
   const { addNotification } = useNotifications();
+  
+  // State
   const [balance, setBalance] = useState(0.00);
-  const [activeTab, setActiveTab] = useState<'SEND' | 'LOAN' | 'BILLS' | 'INSURE' | 'MERCHANT' | 'HISTORY' | 'QR' | 'DEPOSIT' | 'WITHDRAW' | 'LINK_ACCOUNT' | 'VERIFY_SMS'>('HISTORY');
-  const [qrMode, setQrMode] = useState<'MY_CODE' | 'SCAN'>('MY_CODE');
+  const [activeView, setActiveView] = useState<WalletView>('HOME');
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  // Mock Linked Accounts
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Linked Accounts
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([
-      { id: '1', type: 'MOMO', provider: 'MTN', accountNumber: '0244123456', accountName: 'Kofi Farmer' }
+      { id: '1', type: 'MOMO', provider: 'MTN', accountNumber: '0244123456', accountName: user?.name || 'User' }
   ]);
 
-  // Form States
-  const [recipientPhone, setRecipientPhone] = useState('');
-  const [recipientNetwork, setRecipientNetwork] = useState(networks[0]);
-  const [reference, setReference] = useState('');
+  // Inputs
   const [amount, setAmount] = useState('');
-  const [billType, setBillType] = useState('Electricity (ECG) - Prepaid');
-  const [loanAmount, setLoanAmount] = useState('');
-  const [merchantId, setMerchantId] = useState('');
-  const [merchantNetwork, setMerchantNetwork] = useState(networks[0]);
-
-  // P2P Transaction State
-  const [transferStep, setTransferStep] = useState<'INPUT' | 'CONFIRM'>('INPUT');
-  const [simulatedRecipientName, setSimulatedRecipientName] = useState('');
+  const [recipient, setRecipient] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState('');
+  const [selectedProvider, setSelectedProvider] = useState('');
+  const [reference, setReference] = useState('');
+  
+  // QR State
+  const [qrMode, setQrMode] = useState<'MY_CODE' | 'SCAN'>('MY_CODE');
+  
+  // PIN Verification
+  const [showPinModal, setShowPinModal] = useState(false);
   const [pin, setPin] = useState('');
-  const [transactionFees, setTransactionFees] = useState({ fee: 0, elevy: 0, total: 0 });
-  
-  // Transaction QR State
-  const [showTransactionQr, setShowTransactionQr] = useState(false);
-  
-  // Deposit/Withdraw State
-  const [selectedAccount, setSelectedAccount] = useState<string>('');
-  const [otp, setOtp] = useState('');
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [withdrawStep, setWithdrawStep] = useState<'INPUT' | 'CONFIRM'>('INPUT');
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  
-  // Link Account State
-  const [newAccountType, setNewAccountType] = useState<'BANK' | 'MOMO'>('MOMO');
-  const [newProvider, setNewProvider] = useState(networks[0]);
-  const [newAccountNumber, setNewAccountNumber] = useState('');
+  const [pendingTransaction, setPendingTransaction] = useState<{
+      type: Transaction['type']; 
+      amount: number; 
+      desc: string; 
+      meta?: any 
+  } | null>(null);
 
-  // SMS Verification State
+  // Feature Specific
+  const [creditLimit, setCreditLimit] = useState(0);
+  const [loanTerm, setLoanTerm] = useState('1');
   const [smsText, setSmsText] = useState('');
-  const [isVerifyingSms, setIsVerifyingSms] = useState(false);
   const [verificationResult, setVerificationResult] = useState<any>(null);
 
-  // Initialize Balance and Realtime Subscription
+  // --- Effects ---
+
   useEffect(() => {
-      if (user && user.uid) {
+      if (user?.uid) {
           setLoadingBalance(true);
-          // Initial Fetch
-          getWalletBalance(user.uid).then(setBalance);
+          getWalletBalance(user.uid).then(bal => {
+              setBalance(bal);
+              // Simple credit score logic: 3.5x balance or min 500
+              setCreditLimit(Math.max(500, Math.floor(bal * 3.5)));
+          });
           getTransactionHistory(user.uid).then((txs: any) => setTransactions(txs || []));
           setLoadingBalance(false);
 
-          // Realtime Subscription for Balance Updates
-          const channel = supabase.channel('wallet_changes')
-            .on(
-                'postgres_changes', 
-                { event: 'UPDATE', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.uid}` }, 
-                (payload) => {
-                    // When a transaction status changes (e.g. pending -> completed), refresh balance
-                    if (payload.new && (payload.new as Transaction).status === 'completed') {
-                        getWalletBalance(user.uid!).then(setBalance);
-                        getTransactionHistory(user.uid!).then((txs: any) => setTransactions(txs || []));
-                        addNotification({ type: 'wallet', title: 'Payment Confirmed', message: 'Your wallet balance has been updated.', view: 'WALLET' });
-                    }
-                }
-            )
+          const channel = supabase.channel('wallet_updates')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.uid}` }, 
+            (payload) => {
+                const newTx = payload.new as Transaction;
+                setTransactions(prev => [newTx, ...prev]);
+                // Re-fetch balance to ensure sync (though optimistic UI handles visuals)
+                getWalletBalance(user.uid!).then(setBalance);
+            })
             .subscribe();
 
           return () => { supabase.removeChannel(channel); };
       }
   }, [user]);
 
-  const validatePhone = (phone: string) => {
-      const phoneRegex = /^0\d{9}$/;
-      return phoneRegex.test(phone);
-  };
+  // --- Helpers ---
 
-  const initiateTransfer = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = parseFloat(amount);
-    
-    if (!validatePhone(recipientPhone)) {
-        addNotification({ type: 'wallet', title: 'Invalid Number', message: 'Please enter a valid 10-digit valid phone number (e.g., 024...).', view: 'WALLET' });
-        return;
-    }
+  const formatMoney = (amount: number) => `GHS ${amount.toFixed(2)}`;
 
-    if (val > 0 && val <= balance) {
-        // 1. Name Resolution
-        setSimulatedRecipientName(recipientPhone === '0244000000' ? 'Unknown User' : 'Kwame Mensah');
-        
-        // 2. Calculate Fees
-        const fee = val * 0.01; // 1% Network Fee
-        const elevy = val * 0.01; // 1% E-Levy
-        const total = val + fee + elevy;
-
-        if (total > balance) {
-             addNotification({ type: 'wallet', title: 'Insufficient Funds', message: 'Balance not enough to cover amount + fees.', view: 'WALLET' });
-             return;
-        }
-
-        setTransactionFees({ fee, elevy, total });
-        setTransferStep('CONFIRM');
-    } else {
-       addNotification({ type: 'wallet', title: 'Invalid Amount', message: `Please enter a valid amount within your balance.`, view: 'WALLET' });
-    }
-  };
-
-  const confirmTransfer = async () => {
-    if (pin.length !== 4) {
-        addNotification({ type: 'wallet', title: 'Invalid PIN', message: 'Please enter your 4-digit PIN.', view: 'WALLET' });
-        return;
-    }
-
-    // In a real app, this would also hit an API. We'll update state locally for P2P simulation since we lack the full backend logic for P2P currently.
-    setBalance(prev => prev - transactionFees.total);
-    addNotification({ type: 'wallet', title: 'Transaction Successful', message: `Sent GHS ${parseFloat(amount).toFixed(2)} to ${simulatedRecipientName} (${recipientNetwork}).`, view: 'WALLET' });
-
-    // Reset
-    setAmount('');
-    setRecipientPhone('');
-    setReference('');
-    setPin('');
-    setTransferStep('INPUT');
-  };
-
-  // Deposit via Service
-  const handleDeposit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!user) return;
-      if (!selectedAccount || !amount || parseFloat(amount) <= 0) {
-          addNotification({ type: 'wallet', title: 'Invalid Input', message: 'Select an account and enter a valid amount.', view: 'WALLET' });
+  const handleTransactionStart = (type: Transaction['type'], amountVal: number, desc: string, meta?: any) => {
+      if (amountVal <= 0) {
+          addNotification({ type: 'wallet', title: 'Invalid Amount', message: 'Please enter a valid amount.', view: 'WALLET' });
+          return;
+      }
+      if (type !== 'DEPOSIT' && type !== 'LOAN' && amountVal > balance) {
+          addNotification({ type: 'wallet', title: 'Insufficient Funds', message: 'Top up your wallet first.', view: 'WALLET' });
           return;
       }
       
-      const account = linkedAccounts.find(a => a.id === selectedAccount);
-      const provider = account ? account.provider : 'MTN';
+      setPendingTransaction({ type, amount: amountVal, desc, meta });
+      setPin('');
+      setShowPinModal(true);
+  };
 
-      setIsProcessingPayment(true);
+  const handlePinSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (pin.length !== 4) return;
+      
+      // Simulate PIN check
+      if (pin === '0000') {
+          addNotification({ type: 'wallet', title: 'Invalid PIN', message: 'Default PIN 0000 is not allowed. Try 1234.', view: 'WALLET' });
+          return;
+      }
+
+      setShowPinModal(false);
+      setIsProcessing(true);
+
+      if (!pendingTransaction || !user?.uid) return;
+
+      const { type, amount: txAmount, desc, meta } = pendingTransaction;
+
+      // 1. Optimistic Update (Instant feedback)
+      const oldBalance = balance;
+      if (type === 'DEPOSIT' || type === 'LOAN') {
+          setBalance(prev => prev + txAmount);
+      } else {
+          setBalance(prev => prev - txAmount);
+      }
+
+      // 2. Persist to DB
       try {
-          // This calls the service which creates a 'pending' transaction and simulates the webhook
-          await initiatePayment(user, parseFloat(amount), provider, account?.accountNumber || '0244000000');
+          // If it's a deposit, we use the service to simulate external flow (USSD trigger)
+          if (type === 'DEPOSIT') {
+              const account = linkedAccounts.find(a => a.id === selectedAccount);
+              await initiatePayment(user, txAmount, account?.provider || 'MTN', account?.accountNumber || user.phone || '0240000000');
+          } else {
+              // Direct DB insert for other types
+              const { error } = await supabase.from('transactions').insert([{
+                  user_id: user.uid,
+                  amount: txAmount,
+                  currency: 'GHS',
+                  type: type, // Matches DB enum
+                  status: 'completed',
+                  provider: 'Wallet',
+                  provider_reference: `TRX-${Date.now()}`,
+                  phone_number: user.phone || 'N/A',
+                  description: desc,
+                  created_at: new Date().toISOString()
+              }]);
+              if (error) throw error;
+          }
+
+          addNotification({ type: 'wallet', title: 'Success', message: desc, view: 'WALLET' });
           
-          setShowOtpModal(true);
-          addNotification({ type: 'wallet', title: 'Prompt Sent', message: 'Check your phone to approve the transaction.', view: 'WALLET' });
+          // Reset Form State
+          setAmount('');
+          setRecipient('');
+          setReference('');
+          setActiveView('HOME'); // Return home on success
+
       } catch (error) {
           console.error(error);
-          addNotification({ type: 'wallet', title: 'Error', message: 'Failed to initiate deposit.', view: 'WALLET' });
+          setBalance(oldBalance); // Rollback on error
+          addNotification({ type: 'wallet', title: 'Transaction Failed', message: 'Network error. Please try again.', view: 'WALLET' });
       } finally {
-          setIsProcessingPayment(false);
-      }
-  };
-
-  const verifyDepositOtp = () => {
-      // In this new flow, OTP verification is just a UI step. The actual balance updates when the "Webhook" fires.
-      setShowOtpModal(false);
-      setAmount('');
-      setOtp('');
-      setActiveTab('HISTORY');
-      addNotification({ type: 'wallet', title: 'Processing', message: 'Waiting for network confirmation...', view: 'WALLET' });
-  };
-
-  const handleVerifySms = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!smsText.trim()) return;
-      setIsVerifyingSms(true);
-      setVerificationResult(null);
-      
-      try {
-          const result = await parsePaymentSMS(smsText);
-          setVerificationResult(result);
-          if (result.status === 'flagged') {
-              addNotification({ type: 'wallet', title: 'Warning', message: 'SMS looks suspicious or unclear.', view: 'WALLET' });
-          } else {
-              addNotification({ type: 'wallet', title: 'Verified', message: 'Valid payment SMS detected.', view: 'WALLET' });
-          }
-      } catch (error) {
-          addNotification({ type: 'wallet', title: 'Error', message: 'Could not verify SMS.', view: 'WALLET' });
-      } finally {
-          setIsVerifyingSms(false);
+          setIsProcessing(false);
+          setPendingTransaction(null);
       }
   };
 
   const handleLinkAccount = (e: React.FormEvent) => {
       e.preventDefault();
-      const newAccount: LinkedAccount = {
+      const newAcc: LinkedAccount = {
           id: Date.now().toString(),
-          type: newAccountType,
-          provider: newProvider,
-          accountNumber: newAccountNumber,
-          accountName: user?.name || 'User Name'
+          type: 'MOMO', // simplified for demo
+          provider: selectedProvider || 'MTN',
+          accountNumber: recipient,
+          accountName: user?.name || 'User'
       };
-      setLinkedAccounts([...linkedAccounts, newAccount]);
-      addNotification({ type: 'wallet', title: 'Account Linked', message: `${newProvider} account verified and added.`, view: 'WALLET' });
-      setActiveTab('HISTORY');
-      setNewAccountNumber('');
+      setLinkedAccounts([...linkedAccounts, newAcc]);
+      addNotification({ type: 'wallet', title: 'Account Linked', message: 'Account verified successfully.', view: 'WALLET' });
+      setActiveView('HOME');
+      setRecipient('');
   };
 
-  // QR Logic
-  const toggleTransactionQr = () => {
-      if (!validatePhone(recipientPhone)) {
-          addNotification({ type: 'wallet', title: 'Invalid Number', message: 'Please enter a valid phone number to generate QR.', view: 'WALLET' });
-          return;
-      }
-      setShowTransactionQr(!showTransactionQr);
-  }
+  // --- Sub-Components ---
+
+  const ActionButton = ({ icon, label, onClick, color = "blue" }: { icon: React.ReactNode, label: string, onClick: () => void, color: string }) => {
+      const colorClasses: {[key: string]: string} = {
+          green: 'bg-green-100 text-green-700 hover:bg-green-200',
+          red: 'bg-red-100 text-red-700 hover:bg-red-200',
+          blue: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+          yellow: 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200',
+          purple: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
+          gray: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+      };
+      
+      return (
+        <button onClick={onClick} className="flex flex-col items-center gap-2 group p-2">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-105 ${colorClasses[color]}`}>
+                {React.cloneElement(icon as React.ReactElement, { className: "w-6 h-6" })}
+            </div>
+            <span className="text-xs font-medium text-gray-600 group-hover:text-gray-900">{label}</span>
+        </button>
+      );
+  };
+
+  const PinModal = () => (
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl">
+              <ShieldCheckIcon className="w-12 h-12 text-green-600 mx-auto mb-3" />
+              <h3 className="text-xl font-bold text-gray-900 mb-1">Enter Security PIN</h3>
+              <p className="text-sm text-gray-500 mb-6">Confirm {pendingTransaction?.type.toLowerCase()} of {formatMoney(pendingTransaction?.amount || 0)}</p>
+              
+              <form onSubmit={handlePinSubmit}>
+                  <input 
+                      type="password" 
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value)}
+                      maxLength={4}
+                      autoFocus
+                      className="w-32 text-center text-3xl tracking-[0.5em] font-bold border-b-2 border-gray-300 focus:border-green-500 outline-none mb-8 text-gray-800 bg-transparent"
+                      placeholder="••••"
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                      <Button type="button" onClick={() => setShowPinModal(false)} className="bg-gray-200 !text-gray-800">Cancel</Button>
+                      <Button type="submit" disabled={pin.length !== 4}>Confirm</Button>
+                  </div>
+              </form>
+          </div>
+      </div>
+  );
+
+  // --- Views ---
+
+  const renderHome = () => (
+      <div className="space-y-6 animate-fade-in pb-10">
+          {/* Balance Card */}
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10"><WalletIcon className="w-40 h-40" /></div>
+              <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-2">
+                      <span className="text-gray-300 text-sm font-medium">Available Balance</span>
+                      <div className="p-1.5 bg-white/10 rounded-lg cursor-pointer hover:bg-white/20" onClick={() => setActiveView('QR')}>
+                          <QrCodeIcon className="w-5 h-5 text-white" />
+                      </div>
+                  </div>
+                  <h2 className="text-4xl font-bold mb-6 tracking-tight flex items-center gap-2">
+                      {balance.toFixed(2)} <span className="text-lg font-normal text-gray-400">GHS</span>
+                      {loadingBalance && <Spinner className="w-4 h-4" />}
+                  </h2>
+              </div>
+          </div>
+
+          {/* Main Actions Group */}
+          <div>
+              <h3 className="text-gray-800 font-bold mb-3 px-1 text-sm uppercase tracking-wider">Main Actions</h3>
+              <div className="grid grid-cols-4 gap-2 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                  <ActionButton icon={<ArrowDownIcon />} label="Deposit" onClick={() => setActiveView('DEPOSIT')} color="green" />
+                  <ActionButton icon={<ArrowUpIcon />} label="Withdraw" onClick={() => setActiveView('WITHDRAW')} color="red" />
+                  <ActionButton icon={<BankIcon />} label="Link" onClick={() => setActiveView('LINK_ACCOUNT')} color="gray" />
+                  <ActionButton icon={<QrCodeIcon />} label="Scan" onClick={() => setActiveView('QR')} color="purple" />
+              </div>
+          </div>
+
+          {/* Services Group */}
+          <div>
+              <h3 className="text-gray-800 font-bold mb-3 px-1 text-sm uppercase tracking-wider">Services</h3>
+              <div className="grid grid-cols-3 gap-3">
+                  <div onClick={() => setActiveView('BILLS')} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-yellow-50 cursor-pointer h-24 transition-colors">
+                      <LightningIcon className="w-8 h-8 text-yellow-600" />
+                      <span className="text-xs font-bold text-gray-700">Pay Bills</span>
+                  </div>
+                  <div onClick={() => setActiveView('LOANS')} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-blue-50 cursor-pointer h-24 transition-colors">
+                      <BanknotesIcon className="w-8 h-8 text-blue-600" />
+                      <span className="text-xs font-bold text-gray-700">Loans</span>
+                  </div>
+                  <div onClick={() => setActiveView('INSURANCE')} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-green-50 cursor-pointer h-24 transition-colors">
+                      <ShieldCheckIcon className="w-8 h-8 text-green-600" />
+                      <span className="text-xs font-bold text-gray-700">Insurance</span>
+                  </div>
+              </div>
+          </div>
+
+          {/* Account Management Group */}
+          <div>
+              <h3 className="text-gray-800 font-bold mb-3 px-1 text-sm uppercase tracking-wider">Account Management</h3>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y">
+                  <div onClick={() => setActiveView('HISTORY')} className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-gray-100 rounded-full text-gray-600"><ClockIcon className="w-5 h-5"/></div>
+                          <span className="font-medium text-gray-700">Transaction History</span>
+                      </div>
+                      <ArrowRightIcon className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div onClick={() => setActiveView('VERIFY_SMS')} className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-gray-100 rounded-full text-gray-600"><CheckCircleIcon className="w-5 h-5"/></div>
+                          <span className="font-medium text-gray-700">Verify Payment SMS</span>
+                      </div>
+                      <ArrowRightIcon className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div onClick={() => setActiveView('SETTINGS')} className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-gray-100 rounded-full text-gray-600"><UserCircleIcon className="w-5 h-5"/></div>
+                          <span className="font-medium text-gray-700">Settings & Security</span>
+                      </div>
+                      <ArrowRightIcon className="w-5 h-5 text-gray-400" />
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
+
+  const renderBills = () => (
+      <div className="animate-fade-in max-w-md mx-auto">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">Pay Bills</h3>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+              {BILL_PROVIDERS.map(prov => (
+                  <div 
+                    key={prov.id} 
+                    onClick={() => { setSelectedProvider(prov.id); setReference(''); }}
+                    className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col items-center gap-2 ${selectedProvider === prov.id ? 'border-yellow-500 bg-yellow-50 ring-1 ring-yellow-500' : 'border-gray-200 bg-white hover:border-yellow-300'}`}
+                  >
+                      {prov.icon}
+                      <span className="text-xs font-bold text-gray-700">{prov.name}</span>
+                  </div>
+              ))}
+          </div>
+
+          {selectedProvider && (
+              <div className="space-y-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                  <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Account / Meter Number</label>
+                      <input value={reference} onChange={e => setReference(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none" placeholder="e.g. 123456789" />
+                  </div>
+                  <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
+                      <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none" placeholder="0.00" />
+                  </div>
+                  <Button onClick={() => handleTransactionStart('PAYMENT', parseFloat(amount), `Bill: ${BILL_PROVIDERS.find(p => p.id === selectedProvider)?.name}`)} className="w-full bg-yellow-600 hover:bg-yellow-700">
+                      Pay Bill
+                  </Button>
+              </div>
+          )}
+      </div>
+  );
+
+  const renderLoans = () => (
+      <div className="animate-fade-in max-w-md mx-auto">
+          <div className="bg-blue-600 text-white p-6 rounded-2xl shadow-lg mb-6 text-center">
+              <p className="text-blue-100 text-sm font-medium mb-1">Pre-Approved Limit</p>
+              <h3 className="text-3xl font-bold">{formatMoney(creditLimit)}</h3>
+              <p className="text-xs text-blue-200 mt-2">Interest Rate: 5% / month</p>
+          </div>
+
+          <div className="space-y-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+              <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Loan Amount</label>
+                  <input type="number" max={creditLimit} value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0.00" />
+                  <div className="flex justify-between mt-1 text-xs text-gray-400">
+                      <span>Min: GHS 50</span>
+                      <span>Max: GHS {creditLimit}</span>
+                  </div>
+              </div>
+              <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Duration</label>
+                  <div className="flex gap-2">
+                      {['1', '3', '6'].map(m => (
+                          <button key={m} onClick={() => setLoanTerm(m)} className={`flex-1 py-2 rounded-lg border text-sm font-medium ${loanTerm === m ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-200 text-gray-600'}`}>
+                              {m} Month{m !== '1' && 's'}
+                          </button>
+                      ))}
+                  </div>
+              </div>
+
+              {amount && (
+                  <div className="bg-blue-50 p-3 rounded-lg flex justify-between items-center text-sm">
+                      <span className="text-blue-800">Repayment Total:</span>
+                      <span className="font-bold text-blue-900">{formatMoney(parseFloat(amount) * (1 + (parseInt(loanTerm) * 0.05)))}</span>
+                  </div>
+              )}
+
+              <Button onClick={() => handleTransactionStart('LOAN', parseFloat(amount), `Loan Disbursement (${loanTerm} mo)`)} className="w-full bg-blue-600 hover:bg-blue-700">
+                  Request Loan
+              </Button>
+          </div>
+      </div>
+  );
+
+  const renderInsurance = () => (
+      <div className="animate-fade-in space-y-4 max-w-md mx-auto">
+          {INSURANCE_PLANS.map(plan => (
+              <div key={plan.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:border-green-400 transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-green-100 text-green-700 rounded-lg"><ShieldCheckIcon className="w-6 h-6" /></div>
+                          <div>
+                              <h4 className="font-bold text-gray-900">{plan.name}</h4>
+                              <p className="text-xs text-gray-500">{plan.desc}</p>
+                          </div>
+                      </div>
+                      <span className="text-lg font-bold text-green-700">GHS {plan.premium}<span className="text-xs font-normal text-gray-400">/mo</span></span>
+                  </div>
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50">
+                      <span className="text-xs font-medium text-gray-500">Coverage: GHS {plan.coverage}</span>
+                      <Button onClick={() => handleTransactionStart('PAYMENT', plan.premium, `Insurance: ${plan.name}`)} className="text-xs px-4 py-2 bg-green-600 hover:bg-green-700">
+                          Subscribe
+                      </Button>
+                  </div>
+              </div>
+          ))}
+      </div>
+  );
+
+  const renderDepositWithdraw = (mode: 'DEPOSIT' | 'WITHDRAW') => (
+    <div className="animate-fade-in max-w-md mx-auto">
+        <h3 className="text-lg font-bold text-gray-800 mb-4 capitalize">{mode.toLowerCase()} Funds</h3>
+        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+            <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                    {mode === 'DEPOSIT' ? 'From Account' : 'To Account'}
+                </label>
+                <select value={selectedAccount} onChange={e => setSelectedAccount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none">
+                    <option value="">Select Linked Account</option>
+                    {linkedAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.provider} - {acc.accountNumber}</option>)}
+                </select>
+                {linkedAccounts.length === 0 && <p className="text-xs text-red-500 mt-1">Please link an account first.</p>}
+            </div>
+            <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
+                <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="0.00" />
+            </div>
+            <Button onClick={() => handleTransactionStart(mode === 'WITHDRAW' ? 'WITHDRAWAL' : mode, parseFloat(amount), `${mode === 'DEPOSIT' ? 'Deposit from' : 'Withdrawal to'} Linked Account`)} className={`w-full ${mode === 'DEPOSIT' ? 'bg-green-600' : 'bg-red-600'}`}>
+                Confirm {mode === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'}
+            </Button>
+        </div>
+    </div>
+  );
+
+  const renderQr = () => (
+      <div className="animate-fade-in text-center max-w-sm mx-auto">
+          <div className="flex bg-gray-100 p-1 rounded-lg mb-6">
+              <button 
+                onClick={() => setQrMode('MY_CODE')}
+                className={`flex-1 py-2 text-sm font-medium rounded-md ${qrMode === 'MY_CODE' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+              >
+                  My Code
+              </button>
+              <button 
+                onClick={() => setQrMode('SCAN')}
+                className={`flex-1 py-2 text-sm font-medium rounded-md ${qrMode === 'SCAN' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+              >
+                  Scan Code
+              </button>
+          </div>
+
+          {qrMode === 'MY_CODE' ? (
+              <div className="bg-white p-8 rounded-2xl shadow-lg inline-block border border-gray-100">
+                  <div className="border-4 border-gray-900 p-2 rounded-xl mb-4">
+                      <QrCodeIcon className="w-48 h-48 text-gray-900" />
+                  </div>
+                  <p className="font-bold text-gray-800 text-lg">{user?.name}</p>
+                  <p className="text-gray-500">{user?.phone}</p>
+              </div>
+          ) : (
+              <div className="bg-black rounded-2xl aspect-square flex flex-col items-center justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 border-2 border-green-500/50 rounded-2xl animate-pulse"></div>
+                  <CameraIcon className="w-16 h-16 text-gray-600 mb-4 opacity-50" />
+                  <p className="text-gray-400 text-sm mb-4">Point camera at QR code</p>
+                  <Button onClick={() => {
+                      addNotification({ type: 'wallet', title: 'Code Scanned', message: 'Found: Kofi (0244123456). Redirecting...', view: 'WALLET' });
+                      setRecipient('0244123456');
+                      setActiveView('TRANSFER');
+                  }} className="bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm">Simulate Scan</Button>
+              </div>
+          )}
+      </div>
+  );
 
   return (
-    <Card>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 bg-yellow-100 rounded-full text-yellow-700">
-          <WalletIcon className="w-8 h-8" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Mobile Money & Digital Wallet</h2>
-          <p className="text-gray-600">Secure transactions via MTN, Telecel & AirtelTigo.</p>
-          {user && <p className="text-xs text-green-700 font-medium mt-1">Wallet linked to: {user.phone} ({user.name})</p>}
-        </div>
+    <Card className="min-h-[600px] relative">
+      {/* Header / Nav */}
+      <div className="flex items-center justify-between mb-4">
+          {activeView === 'HOME' ? (
+              <div className="flex items-center gap-2">
+                   <div className="w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center text-white font-bold text-xs">Ag</div>
+                   <span className="font-bold text-gray-900 tracking-tight">AgroWallet</span>
+              </div>
+          ) : (
+              <button onClick={() => setActiveView('HOME')} className="flex items-center text-gray-600 hover:text-gray-900 bg-gray-100 px-3 py-1.5 rounded-lg text-sm font-medium">
+                  <ArrowLeftIcon className="w-4 h-4 mr-1" /> Back
+              </button>
+          )}
+          <div className="flex gap-3">
+             <button onClick={() => setActiveView('HOME')} className={`p-2 rounded-full ${activeView === 'HOME' ? 'bg-gray-100 text-gray-900' : 'text-gray-400'}`}>
+                 <HomeIcon className="w-5 h-5" />
+             </button>
+             <button onClick={() => setActiveView('HISTORY')} className={`p-2 rounded-full ${activeView === 'HISTORY' ? 'bg-gray-100 text-gray-900' : 'text-gray-400'}`}>
+                 <GridIcon className="w-5 h-5" />
+             </button>
+          </div>
       </div>
 
-      {/* Balance Card */}
-      <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-6 text-white mb-8 shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-20">
-            <WalletIcon className="w-32 h-32" />
-        </div>
-        <div className="flex justify-between items-start relative z-10">
-            <div>
-                <p className="text-yellow-100 text-sm font-medium mb-1">Available Balance</p>
-                <h3 className="text-4xl font-bold mb-4 flex items-center gap-2">
-                    GHS {balance.toFixed(2)}
-                    {loadingBalance && <Spinner className="w-5 h-5 text-white/70" />}
-                </h3>
-            </div>
-            <div className="text-right">
-                <span className="bg-white/20 text-xs px-2 py-1 rounded border border-white/30">Gold Tier User</span>
-            </div>
-        </div>
-        
-        <div className="flex flex-wrap gap-3 relative z-10">
-           <button onClick={() => setActiveTab('DEPOSIT')} className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur-sm transition-colors ${activeTab === 'DEPOSIT' ? 'bg-white text-yellow-800 font-bold shadow-md' : 'bg-white/20 hover:bg-white/30'}`}><ArrowDownIcon className="w-5 h-5" /> Deposit</button>
-           <button onClick={() => setActiveTab('WITHDRAW')} className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur-sm transition-colors ${activeTab === 'WITHDRAW' ? 'bg-white text-yellow-800 font-bold shadow-md' : 'bg-white/20 hover:bg-white/30'}`}><ArrowUpIcon className="w-5 h-5" /> Withdraw</button>
-           <button onClick={() => setActiveTab('VERIFY_SMS')} className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur-sm transition-colors ${activeTab === 'VERIFY_SMS' ? 'bg-white text-yellow-800 font-bold shadow-md' : 'bg-white/20 hover:bg-white/30'}`}><ShieldCheckIcon className="w-5 h-5" /> Verify SMS</button>
-           <div className="w-px bg-white/30 mx-2"></div>
-           <button onClick={() => { setActiveTab('SEND'); setTransferStep('INPUT'); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur-sm transition-colors ${activeTab === 'SEND' ? 'bg-white text-yellow-800 font-bold shadow-md' : 'bg-white/20 hover:bg-white/30'}`}><WalletIcon className="w-5 h-5" /> Send</button>
-           <button onClick={() => setActiveTab('HISTORY')} className={`flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur-sm transition-colors ${activeTab === 'HISTORY' ? 'bg-white text-yellow-800 font-bold shadow-md' : 'bg-white/20 hover:bg-white/30'}`}>History</button>
-        </div>
-      </div>
+      {/* Main Content Area */}
+      <div className="pb-4">
+          {activeView === 'HOME' && renderHome()}
+          {activeView === 'BILLS' && renderBills()}
+          {activeView === 'LOANS' && renderLoans()}
+          {activeView === 'INSURANCE' && renderInsurance()}
+          {activeView === 'DEPOSIT' && renderDepositWithdraw('DEPOSIT')}
+          {activeView === 'WITHDRAW' && renderDepositWithdraw('WITHDRAW')}
+          {activeView === 'QR' && renderQr()}
+          
+          {/* Reuse logic for simple views */}
+          {activeView === 'LINK_ACCOUNT' && (
+               <div className="max-w-md mx-auto animate-fade-in">
+                   <h3 className="text-lg font-bold mb-4">Link New Account</h3>
+                   <div className="bg-white p-5 rounded-xl border space-y-4">
+                       <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)} className="w-full p-3 border rounded-lg bg-white">
+                           <option value="">Select Provider</option>
+                           {[...NETWORKS, ...BANKS].map(p => <option key={p} value={p}>{p}</option>)}
+                       </select>
+                       <input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Account/Phone Number" className="w-full p-3 border rounded-lg" />
+                       <Button onClick={handleLinkAccount} className="w-full">Link Account</Button>
+                   </div>
+               </div>
+          )}
 
-      {/* Action Area */}
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-6 min-h-[400px]">
-        
-        {activeTab === 'VERIFY_SMS' && (
-            <div className="max-w-lg mx-auto animate-fade-in">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Verify Payment SMS</h3>
-                <p className="text-gray-600 text-sm mb-4">Paste an SMS from MTN MoMo or Vodafone Cash to verify if it's a legitimate transaction and extract details.</p>
-                <form onSubmit={handleVerifySms}>
-                    <textarea 
-                        value={smsText} 
-                        onChange={e => setSmsText(e.target.value)} 
-                        rows={4} 
-                        className="w-full p-3 border rounded-lg mb-4" 
-                        placeholder="Paste SMS here (e.g. Payment received for GHS 500.00...)"
-                    />
-                    <Button type="submit" isLoading={isVerifyingSms} className="w-full bg-yellow-600 hover:bg-yellow-700">Analyze with AI</Button>
-                </form>
-                
+          {activeView === 'TRANSFER' && (
+              <div className="max-w-md mx-auto animate-fade-in">
+                  <h3 className="text-lg font-bold mb-4">Send Money</h3>
+                  <div className="bg-white p-5 rounded-xl border space-y-4">
+                       <input type="tel" value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Recipient Phone (024...)" className="w-full p-3 border rounded-lg" />
+                       <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (GHS)" className="w-full p-3 border rounded-lg" />
+                       <Button onClick={() => handleTransactionStart('TRANSFER', parseFloat(amount), `Transfer to ${recipient}`)} className="w-full bg-blue-600 hover:bg-blue-700">Next</Button>
+                  </div>
+              </div>
+          )}
+
+          {activeView === 'HISTORY' && (
+               <div className="animate-fade-in">
+                   <h3 className="font-bold text-lg mb-4">All Transactions</h3>
+                   <div className="space-y-3">
+                       {transactions.map(tx => (
+                          <div key={tx.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+                              <div>
+                                  <p className="font-bold text-gray-800">{tx.description}</p>
+                                  <p className="text-xs text-gray-500">{new Date(tx.created_at).toLocaleString()}</p>
+                              </div>
+                              <span className={`font-bold ${['DEPOSIT', 'LOAN'].includes(tx.type) ? 'text-green-600' : 'text-gray-800'}`}>
+                                  {['DEPOSIT', 'LOAN'].includes(tx.type) ? '+' : '-'} {tx.amount.toFixed(2)}
+                              </span>
+                          </div>
+                       ))}
+                   </div>
+               </div>
+          )}
+          
+          {activeView === 'VERIFY_SMS' && (
+            <div className="max-w-md mx-auto animate-fade-in">
+                <h3 className="text-lg font-bold mb-4">Verify Payment SMS</h3>
+                <textarea value={smsText} onChange={e => setSmsText(e.target.value)} rows={4} className="w-full p-3 border rounded-lg mb-4" placeholder="Paste SMS..." />
+                <Button onClick={async () => {
+                    const res = await parsePaymentSMS(smsText);
+                    setVerificationResult(res);
+                }} className="w-full">Verify</Button>
                 {verificationResult && (
-                    <div className={`mt-6 p-4 rounded-lg border ${verificationResult.status === 'flagged' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            {verificationResult.status === 'flagged' ? <ShieldCheckIcon className="w-6 h-6 text-red-600" /> : <CheckCircleIcon className="w-6 h-6 text-green-600" />}
-                            <h4 className="font-bold text-lg capitalize">{verificationResult.status === 'completed' ? 'Valid Transaction' : 'Needs Review'}</h4>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div><span className="text-gray-500">Amount:</span> <span className="font-bold">GHS {verificationResult.amount}</span></div>
-                            <div><span className="text-gray-500">Provider Ref:</span> <span className="font-bold">{verificationResult.provider_reference}</span></div>
-                            <div><span className="text-gray-500">Sender:</span> <span className="font-bold">{verificationResult.phone_number}</span></div>
-                        </div>
+                    <div className="mt-4 p-4 bg-green-50 rounded border border-green-200">
+                        <p className="font-bold text-green-800">Status: {verificationResult.status}</p>
+                        <p className="text-sm">Amount: {verificationResult.amount}</p>
                     </div>
                 )}
             </div>
-        )}
+          )}
 
-        {/* Reuse previous logic for SEND, QR, BILLS, LOAN, ETC. (Condensed for brevity, assume implementation exists) */}
-        {activeTab === 'SEND' && (
-             // ... SEND Logic from previous implementation ...
-             <div className="max-w-md mx-auto animate-fade-in">
-                 {transferStep === 'INPUT' ? (
-                    <form onSubmit={initiateTransfer}>
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">Send Money (P2P)</h3>
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Number</label>
-                            <input type="tel" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} className="w-full p-2 border rounded" placeholder="024XXXXXXX" />
-                        </div>
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (GHS)</label>
-                            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full p-2 border rounded" placeholder="0.00" />
-                        </div>
-                        <Button type="submit" className="w-full">Next</Button>
-                    </form>
-                 ) : (
-                     <div className="text-center">
-                         <h3 className="text-xl font-bold mb-4">Confirm</h3>
-                         <p>Send GHS {amount} to {recipientPhone}?</p>
-                         <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="block w-24 mx-auto my-4 border p-2 rounded text-center" maxLength={4}/>
-                         <div className="flex gap-2 justify-center"><Button onClick={() => setTransferStep('INPUT')} className="bg-gray-400">Back</Button><Button onClick={confirmTransfer}>Confirm</Button></div>
-                     </div>
-                 )}
-             </div>
-        )}
-
-        {activeTab === 'DEPOSIT' && (
-            <div className="animate-fade-in max-w-md mx-auto">
-                 <h3 className="text-xl font-bold text-gray-800 mb-4">Fund Wallet (Secure Webhook)</h3>
-                 <form onSubmit={handleDeposit}>
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Source</label>
-                        <select value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)} className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-white" required>
-                            <option value="">Select Account</option>
-                            {linkedAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.provider} - {acc.accountNumber}</option>)}
-                        </select>
-                    </div>
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Amount (GHS)</label>
-                        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full px-3 py-3 border border-gray-300 rounded-lg" required />
-                    </div>
-                    <Button type="submit" isLoading={isProcessingPayment} className="w-full bg-yellow-600 hover:bg-yellow-700 font-bold">Initiate Deposit</Button>
-                 </form>
-            </div>
-        )}
-        
-        {/* OTP Modal for Deposit */}
-        {showOtpModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Check your Phone</h3>
-                    <p className="text-gray-600 text-sm mb-4">We've sent a prompt to your mobile money number. Please approve it to complete the deposit.</p>
-                    <p className="text-xs text-yellow-600 mb-4 bg-yellow-50 p-2 rounded">Note: Balance will update automatically once payment is confirmed.</p>
-                    <Button onClick={verifyDepositOtp} className="w-full bg-yellow-600 hover:bg-yellow-700">I have approved it</Button>
-                </div>
-            </div>
-        )}
-
-        {activeTab === 'HISTORY' && (
-             <div className="animate-fade-in">
-                 <div className="flex justify-between items-center mb-4">
-                     <h3 className="text-xl font-bold text-gray-800">Transaction History</h3>
-                     <button onClick={() => setActiveTab('LINK_ACCOUNT')} className="text-sm text-yellow-600 hover:underline font-medium">Link Bank/Card</button>
-                 </div>
-                 {transactions.length === 0 ? <p className="text-center text-gray-500 py-8">No transactions found.</p> : (
-                     <div className="space-y-3">
-                         {transactions.map(tx => (
-                             <div key={tx.id} className="bg-white p-4 rounded-lg border border-gray-200 flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                     <div className={`p-2 rounded-full ${tx.type === 'DEPOSIT' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                         {tx.type === 'DEPOSIT' ? <ArrowDownIcon className="w-4 h-4" /> : <ArrowUpIcon className="w-4 h-4" />}
-                                     </div>
-                                     <div>
-                                         <p className="font-bold text-gray-800 capitalize">{tx.description || tx.type}</p>
-                                         <p className="text-xs text-gray-500">{new Date(tx.created_at).toLocaleString()} • {tx.status}</p>
-                                     </div>
-                                </div>
-                                <span className={`font-bold ${tx.type === 'DEPOSIT' ? 'text-green-600' : 'text-gray-800'}`}>
-                                    {tx.type === 'DEPOSIT' ? '+' : '-'} GHS {tx.amount.toFixed(2)}
-                                </span>
-                            </div>
-                         ))}
-                     </div>
-                 )}
-             </div>
-        )}
-
+          {activeView === 'SETTINGS' && (
+              <div className="max-w-md mx-auto animate-fade-in bg-white p-6 rounded-xl border text-center text-gray-500">
+                  <ShieldCheckIcon className="w-12 h-12 mx-auto mb-2 text-gray-300"/>
+                  <p>Security Settings and PIN management coming soon.</p>
+              </div>
+          )}
       </div>
+
+      {showPinModal && <PinModal />}
     </Card>
   );
 };
