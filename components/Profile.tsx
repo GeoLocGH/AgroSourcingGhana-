@@ -381,7 +381,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                               <div className="p-2 bg-gray-100 rounded text-gray-500"><PaperClipIcon className="w-5 h-5" /></div>
                                               <div>
                                                   <p className="text-sm font-medium text-gray-900 truncate">{f.file_name}</p>
-                                                  <p className="text-xs text-gray-500 capitalize">{f.context.replace('-', ' ')} • {new Date(f.created_at).toLocaleDateString()}</p>
+                                                  <p className="text-xs text-gray-500 capitalize">{f.context.replace('-', ' ')} • {new Date(f.createdAt).toLocaleDateString()}</p>
                                               </div>
                                           </div>
                                           <div className="flex gap-2">

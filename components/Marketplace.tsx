@@ -871,7 +871,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                                     placeholder="Latitude (e.g. 5.6037)" 
                                                     value={newItem.location_lat ?? ''} 
                                                     onChange={(e) => handleInputChange(e)} 
-                                                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    className="w-full px-3 py-3 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                                                 />
                                             </div>
                                             <div>
@@ -882,7 +882,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                                     placeholder="Longitude (e.g. -0.1870)" 
                                                     value={newItem.location_lng ?? ''} 
                                                     onChange={(e) => handleInputChange(e)} 
-                                                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    className="w-full px-3 py-3 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                                                 />
                                             </div>
                                         </div>
@@ -892,7 +892,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                             placeholder="Location Name (e.g. Makola Market, Accra)" 
                                             value={newItem.location_name || ''} 
                                             onChange={(e) => handleInputChange(e)} 
-                                            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            className="w-full px-3 py-3 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                                         />
                                         <p className="text-xs text-gray-500">
                                             Coordinates are automatically filled if you allow location access, or you can enter them manually.
@@ -902,11 +902,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Usage Instructions (Optional)</label>
-                                    <textarea name="usage_instructions" value={newItem.usage_instructions || ''} onChange={(e) => handleInputChange(e)} rows={2} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                    <textarea name="usage_instructions" value={newItem.usage_instructions || ''} onChange={(e) => handleInputChange(e)} rows={2} className="w-full px-3 py-3 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Storage Recommendations (Optional)</label>
-                                    <textarea name="storage_recommendations" value={newItem.storage_recommendations || ''} onChange={(e) => handleInputChange(e)} rows={2} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                    <textarea name="storage_recommendations" value={newItem.storage_recommendations || ''} onChange={(e) => handleInputChange(e)} rows={2} className="w-full px-3 py-3 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 </div>
 
                                 <div className="md:col-span-2">
@@ -1098,7 +1098,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                 placeholder="Search seeds, tools, fertilizers..." 
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                                className="w-full pl-10 pr-4 py-3 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
                              />
                              <div className="absolute left-3 top-3.5 text-gray-400">
                                  <SearchIcon className="w-5 h-5" />

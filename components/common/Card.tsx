@@ -1,3 +1,4 @@
+
 import React, { ReactNode } from 'react';
 
 interface CardProps {
@@ -11,7 +12,7 @@ const Card: React.FC<CardProps> = ({ children, className = '', onClick }) => {
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-xl shadow-md border-2 border-orange-700 p-4 sm:p-6 ${interactiveClasses} ${className}`}
+      className={`bg-white text-gray-900 rounded-xl shadow-md border-2 border-orange-700 p-4 sm:p-6 ${interactiveClasses} ${className}`}
     >
       {children}
     </div>

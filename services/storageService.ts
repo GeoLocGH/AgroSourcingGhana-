@@ -51,7 +51,7 @@ export const uploadUserFile = async (
       context,
       ai_summary: aiSummary || null,
       notes: notes || null,
-      created_at: new Date().toISOString()
+      createdAt: new Date().toISOString()
     };
 
     if (userId && context !== 'admin-logo') {
@@ -64,7 +64,7 @@ export const uploadUserFile = async (
                 .single();
 
             if (dbError) {
-                console.warn("File uploaded but DB tracking failed (RLS or Schema):", dbError.message);
+                console.warn("File uploaded but DB tracking failed (RLS or Schema):", JSON.stringify(dbError));
                 // Return constructed object if DB fails
                 return { id: `temp-${timestamp}`, ...fileData } as UserFile;
             }
@@ -112,12 +112,19 @@ export const getUserFiles = async (userId: string): Promise<UserFile[]> => {
         .from('user_files')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .order('createdAt', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+        // Handle common error where table might not exist in development (code 42P01 is undefined_table)
+        if (error.code === '42P01') {
+            console.warn("Table 'user_files' does not exist. Skipping file fetch.");
+            return [];
+        }
+        throw error;
+    }
     return (data as UserFile[]) || [];
-  } catch (error) {
-    console.error("Error fetching user files:", error);
+  } catch (error: any) {
+    console.error("Error fetching user files:", JSON.stringify(error, null, 2) || error.message);
     return [];
   }
 };

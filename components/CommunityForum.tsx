@@ -216,7 +216,7 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                  
                  {/* Add Reply Form */}
                  <form onSubmit={handleAddReply} className="mt-4">
-                     <textarea value={newReplyContent} onChange={e => setNewReplyContent(e.target.value)} className="w-full border rounded p-2" placeholder="Write a reply..." />
+                     <textarea value={newReplyContent} onChange={e => setNewReplyContent(e.target.value)} className="w-full border rounded p-2 bg-white text-gray-900" placeholder="Write a reply..." />
                      <input type="file" onChange={e => handleImageChange(e, 'reply')} />
                      <Button type="submit" isLoading={isSubmitting}>Reply</Button>
                  </form>
@@ -226,8 +226,8 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
         {view === 'CREATE' && (
             <form onSubmit={handleCreatePost}>
                 <h2 className="text-xl font-bold mb-4">Create Post</h2>
-                <input value={newPostTitle} onChange={e => setNewPostTitle(e.target.value)} className="w-full border p-2 mb-2" placeholder="Title" />
-                <textarea value={newPostContent} onChange={e => setNewPostContent(e.target.value)} className="w-full border p-2 mb-2" placeholder="Content" />
+                <input value={newPostTitle} onChange={e => setNewPostTitle(e.target.value)} className="w-full border p-2 mb-2 bg-white text-gray-900 rounded" placeholder="Title" />
+                <textarea value={newPostContent} onChange={e => setNewPostContent(e.target.value)} className="w-full border p-2 mb-2 bg-white text-gray-900 rounded" placeholder="Content" />
                 <input type="file" multiple onChange={e => handleImageChange(e, 'post')} />
                 <div className="flex gap-2 mt-4">
                     <Button type="submit" isLoading={isSubmitting}>Submit</Button>

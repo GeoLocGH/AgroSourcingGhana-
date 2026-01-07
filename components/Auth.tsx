@@ -230,7 +230,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
              )}
           </button>
           
-          <Button onClick={handleLogoutClick} className="bg-green-700 hover:bg-green-600 text-xs py-2 px-3 shadow-lg border border-green-600">
+          <Button onClick={handleLogoutClick} className="bg-orange-800 hover:bg-orange-700 text-xs py-2 px-3 shadow-lg border border-orange-700">
             Logout
           </Button>
         </div>

@@ -232,5 +232,5 @@ export interface UserFile {
   context: 'admin-logo' | 'profile' | 'pest-diagnosis' | 'marketplace' | 'rental' | 'forum' | 'misc';
   ai_summary?: string | null;
   notes?: string | null;
-  created_at: string;
+  createdAt: string;
 }
