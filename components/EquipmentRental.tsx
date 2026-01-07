@@ -497,7 +497,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                                     <Button onClick={() => handleOpenInquiry(item)} className="flex-1 text-xs py-2 bg-indigo-600 hover:bg-indigo-700">
                                         <MailIcon className="w-4 h-4 mr-1 inline" /> Inquiry
                                     </Button>
-                                    <Button onClick={() => handleOpenChat(item)} className="flex-1 text-xs py-2 bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50">
+                                    <Button onClick={() => handleOpenChat(item)} className="flex-1 text-xs py-2 bg-white !text-indigo-700 border border-indigo-200 hover:bg-indigo-50">
                                         <MessageSquareIcon className="w-4 h-4 mr-1 inline" /> Chat
                                     </Button>
                                 </>
@@ -555,7 +555,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                         </div>
                         <div className="flex gap-2 pt-4">
                             <Button type="submit" isLoading={isSubmitting} className="flex-1 bg-indigo-600 hover:bg-indigo-700">{isEditMode ? 'Save Changes' : 'List Item'}</Button>
-                            <Button type="button" onClick={() => setIsFormVisible(false)} className="flex-1 bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button>
+                            <Button type="button" onClick={() => setIsFormVisible(false)} className="flex-1 bg-gray-200 !text-gray-900 hover:bg-gray-300">Cancel</Button>
                         </div>
                     </form>
                 </Card>
@@ -570,7 +570,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     <h3 className="text-xl font-bold mb-2">Delete Equipment?</h3>
                     <p className="text-gray-600 mb-6">Are you sure you want to remove this listing?</p>
                     <div className="flex gap-3">
-                        <Button onClick={() => setIsDeleteModalVisible(false)} className="flex-1 bg-gray-200 text-gray-800">Cancel</Button>
+                        <Button onClick={() => setIsDeleteModalVisible(false)} className="flex-1 bg-gray-200 !text-gray-900">Cancel</Button>
                         <Button onClick={handleDeleteItem} className="flex-1 bg-red-600 text-white">Delete</Button>
                     </div>
                 </Card>

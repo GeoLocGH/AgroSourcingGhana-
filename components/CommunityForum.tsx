@@ -218,7 +218,7 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
         
         {view === 'POST' && selectedPost && (
             <div>
-                 <Button onClick={() => setView('LIST')} className="mb-4 bg-gray-200 text-gray-800 hover:bg-gray-300">
+                 <Button onClick={() => setView('LIST')} className="mb-4 bg-gray-200 !text-gray-900 hover:bg-gray-300">
                     <ArrowLeftIcon className="w-4 h-4 mr-2 inline" /> Back
                  </Button>
                  
@@ -369,7 +369,7 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
 
                     <div className="flex gap-3 pt-4">
                         <Button type="submit" isLoading={isSubmitting} className="flex-1">Post to Forum</Button>
-                        <Button onClick={() => setView('LIST')} className="flex-1 bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button>
+                        <Button onClick={() => setView('LIST')} className="flex-1 bg-gray-200 !text-gray-900 hover:bg-gray-300">Cancel</Button>
                     </div>
                 </div>
             </form>

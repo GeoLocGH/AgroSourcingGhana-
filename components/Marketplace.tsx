@@ -1022,7 +1022,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                 </div>
                             </div>
                             <div className="mt-6 flex justify-end gap-3">
-                                <Button onClick={handleCloseEditModal} className="bg-gray-200 hover:bg-gray-300 text-gray-800">Cancel</Button>
+                                <Button onClick={handleCloseEditModal} className="bg-gray-200 hover:bg-gray-300 !text-gray-900">Cancel</Button>
                                 <Button type="submit">Save Changes</Button>
                             </div>
                         </form>
@@ -1042,7 +1042,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                 Are you sure you want to delete <span className="font-semibold text-gray-800">{itemToDelete.title}</span>? This action cannot be undone.
                             </p>
                             <div className="flex w-full gap-3">
-                                <Button onClick={handleCloseDeleteModal} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800">Cancel</Button>
+                                <Button onClick={handleCloseDeleteModal} className="w-full bg-gray-200 hover:bg-gray-300 !text-gray-900">Cancel</Button>
                                 <Button onClick={handleDeleteItem} className="w-full bg-red-600 hover:bg-red-700 text-white">Delete Item</Button>
                             </div>
                         </div>
@@ -1320,7 +1320,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                             </div>
                                         )}
                                         <div className="mt-auto pt-4 flex gap-2">
-                                            <Button onClick={() => handleToggleDetails(item.id)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-2">
+                                            <Button onClick={() => handleToggleDetails(item.id)} className="flex-1 bg-gray-200 hover:bg-gray-300 !text-gray-900 text-xs py-2">
                                                 {expandedItemId === item.id ? 'Less Info' : 'Details'}
                                             </Button>
                                             

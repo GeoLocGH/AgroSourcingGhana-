@@ -220,7 +220,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                 <p className="text-sm text-gray-500">Manage your account and activities</p>
             </div>
         </div>
-        <Button onClick={onLogout} className="bg-gray-200 text-gray-800 hover:bg-gray-300 w-full md:w-auto">Logout</Button>
+        <Button onClick={onLogout} className="bg-gray-200 !text-gray-900 hover:bg-gray-300 w-full md:w-auto">Logout</Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -284,7 +284,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                            </div>
                            <div className="flex gap-2">
                                <Button type="submit" isLoading={loading} className="flex-1 text-sm">Save</Button>
-                               <Button onClick={() => setIsEditing(false)} className="flex-1 bg-gray-200 text-gray-800 text-sm">Cancel</Button>
+                               <Button onClick={() => setIsEditing(false)} className="flex-1 bg-gray-200 !text-gray-900 text-sm">Cancel</Button>
                            </div>
                        </form>
                    )}
