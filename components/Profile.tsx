@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon } from './common/icons';
-import type { User, UserFile, MarketplaceItem, EquipmentItem, View } from '../types';
+import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon } from './common/icons';
+import type { User, UserFile, MarketplaceItem, EquipmentItem, View, Transaction } from '../types';
 import { supabase } from '../services/supabase';
 import { getUserFiles, deleteUserFile, uploadUserFile, getFreshDownloadUrl } from '../services/storageService';
+import { getTransactionHistory } from '../services/paymentService';
 import { useNotifications } from '../contexts/NotificationContext';
 import { marked } from 'marked';
 import { fileToDataUri } from '../utils';
@@ -18,7 +19,7 @@ interface ProfileProps {
 }
 
 const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveView }) => {
-  const [activeTab, setActiveTab] = useState<'DETAILS' | 'LISTINGS' | 'LIKES' | 'FILES'>('DETAILS');
+  const [activeTab, setActiveTab] = useState<'DETAILS' | 'LISTINGS' | 'LIKES' | 'FILES' | 'TRANSACTIONS'>('DETAILS');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const { addNotification } = useNotifications();
@@ -30,8 +31,10 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   const [myListings, setMyListings] = useState<MarketplaceItem[]>([]);
   const [myEquipment, setMyEquipment] = useState<EquipmentItem[]>([]);
   const [likedItems, setLikedItems] = useState<MarketplaceItem[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
   const [loadingLikes, setLoadingLikes] = useState(false);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   const [formData, setFormData] = useState<Partial<User>>({
     name: user?.name || '',
@@ -55,6 +58,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       fetchUserFiles();
       fetchMyProperties();
       fetchLikedItems();
+      fetchTransactions();
     }
   }, [user]);
 
@@ -69,6 +73,19 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
     } finally {
       setLoadingFiles(false);
     }
+  };
+
+  const fetchTransactions = async () => {
+      if (!user || !user.uid) return;
+      setLoadingTransactions(true);
+      try {
+          const data = await getTransactionHistory(user.uid);
+          setTransactions(data || []);
+      } catch (error) {
+          console.error("Error fetching transactions:", error);
+      } finally {
+          setLoadingTransactions(false);
+      }
   };
 
   const fetchMyProperties = async () => {
@@ -170,6 +187,17 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
     setExpandedFileId(expandedFileId === id ? null : id);
   };
 
+  const getStatusColor = (status: Transaction['status']) => {
+      switch(status) {
+          case 'completed': return 'bg-green-100 text-green-800 border border-green-200';
+          case 'pending': return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+          case 'failed': return 'bg-red-100 text-red-800 border border-red-200';
+          case 'refunded': return 'bg-blue-100 text-blue-800 border border-blue-200';
+          case 'flagged': return 'bg-orange-100 text-orange-800 border border-orange-200';
+          default: return 'bg-gray-100 text-gray-800 border border-gray-200';
+      }
+  };
+
   if (!user) return <p className="text-center p-8">Please log in to view your profile.</p>;
 
   return (
@@ -230,6 +258,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                       <button onClick={() => setActiveTab('LISTINGS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LISTINGS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>My Listings</button>
                       <button onClick={() => setActiveTab('LIKES')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LIKES' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Liked</button>
                       <button onClick={() => setActiveTab('FILES')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'FILES' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Files</button>
+                      <button onClick={() => setActiveTab('TRANSACTIONS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'TRANSACTIONS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Transactions</button>
                   </div>
 
                   <div className="p-6 min-h-[400px]">
@@ -238,6 +267,54 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                               <div><label className="text-xs text-gray-500 uppercase">Email</label><p className="font-medium">{user.email}</p></div>
                               <div><label className="text-xs text-gray-500 uppercase">Phone</label><p className="font-medium">{user.phone || 'Not set'}</p></div>
                               <div className="md:col-span-2"><label className="text-xs text-gray-500 uppercase">User ID</label><p className="font-mono text-xs bg-gray-100 p-2 rounded">{user.uid}</p></div>
+                          </div>
+                      )}
+
+                      {activeTab === 'TRANSACTIONS' && (
+                          <div className="space-y-4">
+                              <h3 className="text-lg font-bold text-gray-800">Payment History (MoMo & Digital Wallet)</h3>
+                              {loadingTransactions ? <p className="text-center py-4">Loading transactions...</p> : (
+                                  <div className="overflow-x-auto">
+                                      <table className="min-w-full divide-y divide-gray-200">
+                                          <thead className="bg-gray-50">
+                                              <tr>
+                                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provider</th>
+                                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                              </tr>
+                                          </thead>
+                                          <tbody className="bg-white divide-y divide-gray-200">
+                                              {transactions.map(tx => (
+                                                  <tr key={tx.id} className="hover:bg-gray-50">
+                                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                          {new Date(tx.created_at).toLocaleDateString()}
+                                                      </td>
+                                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                          <div className="flex items-center gap-2">
+                                                              <BanknotesIcon className="w-4 h-4 text-gray-400" />
+                                                              {tx.provider}
+                                                          </div>
+                                                      </td>
+                                                      <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500">
+                                                          {tx.provider_reference}
+                                                      </td>
+                                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                                                          {tx.currency || 'GHS'} {tx.amount.toFixed(2)}
+                                                      </td>
+                                                      <td className="px-6 py-4 whitespace-nowrap">
+                                                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full uppercase tracking-wider ${getStatusColor(tx.status)}`}>
+                                                              {tx.status}
+                                                          </span>
+                                                      </td>
+                                                  </tr>
+                                              ))}
+                                          </tbody>
+                                      </table>
+                                      {transactions.length === 0 && <p className="text-center text-gray-400 py-8">No transaction history found.</p>}
+                                  </div>
+                              )}
                           </div>
                       )}
 
@@ -275,6 +352,13 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                               ))}
                               {files.length === 0 && !loadingFiles && <p className="text-center text-gray-400 py-8">No files uploaded yet.</p>}
                           </div>
+                      )}
+                      
+                      {activeTab === 'LISTINGS' && (
+                           <div>
+                               {myListings.map(item => <p key={item.id} className="border-b py-2">{item.name} - GHS {item.price}</p>)}
+                               {myListings.length === 0 && !loadingListings && <p className="text-gray-400 text-center py-4">No listings found.</p>}
+                           </div>
                       )}
                   </div>
               </div>

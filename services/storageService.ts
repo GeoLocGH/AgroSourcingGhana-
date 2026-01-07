@@ -33,13 +33,13 @@ export const uploadUserFile = async (
     }
 
     const { error: uploadError } = await supabase.storage
-      .from('uploads')
+      .from('user_uploads')
       .upload(storagePath, file);
 
     if (uploadError) throw uploadError;
 
     const { data: { publicUrl } } = supabase.storage
-      .from('uploads')
+      .from('user_uploads')
       .getPublicUrl(storagePath);
 
     const fileData = {
@@ -75,7 +75,7 @@ export const uploadUserFile = async (
 
 export const deleteUserFile = async (userId: string, fileId: string, storagePath: string): Promise<void> => {
   try {
-    await supabase.storage.from('uploads').remove([storagePath]);
+    await supabase.storage.from('user_uploads').remove([storagePath]);
     if (userId && fileId) {
         const { error: dbError } = await supabase
             .from('user_files')
@@ -91,7 +91,7 @@ export const deleteUserFile = async (userId: string, fileId: string, storagePath
 
 export const getFreshDownloadUrl = async (storagePath: string): Promise<string> => {
     const { data: { publicUrl } } = supabase.storage
-      .from('uploads')
+      .from('user_uploads')
       .getPublicUrl(storagePath);
     return publicUrl;
 };

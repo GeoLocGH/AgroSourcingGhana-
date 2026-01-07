@@ -132,7 +132,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
       <div className="flex flex-row justify-between items-center mb-6 bg-green-800 p-5 rounded-xl shadow-lg gap-4">
         <div className="text-left flex-grow">
            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Welcome!, Mía Woezɔ̃!, Yɛma Mo Akwaaba!</h2>
-           <p className="text-green-100">Select a feature below to get started.</p>
+           <p className="text-green-100">Access localized tools and real-time market data.</p>
         </div>
         <div className="flex-shrink-0 bg-white p-2 rounded-lg shadow-md ml-4">
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/png" className="hidden" />

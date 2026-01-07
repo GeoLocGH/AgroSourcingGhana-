@@ -3,23 +3,23 @@ import React, { useState } from 'react';
 import type { User, View } from '../types';
 import Button from './common/Button';
 import Card from './common/Card';
-import { UserCircleIcon, XIcon, UploadIcon, MailIcon, EyeIcon } from './common/icons';
+import { UserCircleIcon, XIcon, UploadIcon, MailIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { supabase } from '../services/supabase';
 import { uploadUserFile } from '../services/storageService';
+
+export type AuthModalState = 'CLOSED' | 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' | 'VERIFICATION';
 
 interface AuthProps {
   user: User | null;
   onLogin: (user: User) => void;
   onLogout: () => void;
   setActiveView?: (view: View) => void;
+  modalState: AuthModalState;
+  setModalState: (state: AuthModalState) => void;
 }
 
-const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) => {
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
-  
+const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, modalState, setModalState }) => {
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
   const [resetLinkSent, setResetLinkSent] = useState(false);
   
@@ -54,11 +54,9 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
     setResetLinkSent(false);
   };
 
-  const switchToLogin = () => {
-    setIsRegisterOpen(false);
-    setIsForgotPasswordOpen(false);
-    setIsLoginOpen(true);
-    setAuthError('');
+  const closeModal = () => {
+      setModalState('CLOSED');
+      resetForms();
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -77,13 +75,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
       const sessionUser = data.user;
       if (!sessionUser) throw new Error("No user found");
 
-      // App.tsx handles the actual user state setting via onAuthStateChange listener
-      // but we can manually fetch here to ensure UI updates immediately if needed
-      // For now, just close modal, App.tsx listener picks it up.
-      
-      setIsLoginOpen(false);
-      resetForms();
-      // Notification will be handled by App.tsx logic usually, but adding one here is fine
+      closeModal();
     } catch (error: any) {
       console.error("Login error", error);
       setAuthError(error.message || "Invalid email or password");
@@ -110,7 +102,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
 
     try {
       // 1. Sign Up
-      // Pass metadata so it survives if email confirmation is needed
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: regEmail,
           password: regPass,
@@ -129,13 +120,12 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
       const userId = authData.user.id;
       const isSessionActive = !!authData.session;
 
-      // 2. If Session is Active (Auto-confirm), we can setup the profile immediately
+      // 2. If Session is Active (Auto-confirm)
       if (isSessionActive) {
           let profilePhotoUrl = '';
           if (regPhoto) {
               try {
                   const fileData = await uploadUserFile(userId, regPhoto, 'profile', '', 'Profile Photo');
-                  // Fix: Changed download_url to file_url
                   profilePhotoUrl = fileData.file_url;
               } catch(e) {
                   console.warn("Photo upload failed during reg", e);
@@ -154,19 +144,15 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
           const { error: dbError } = await supabase.from('users').upsert([newUser]);
           if (dbError) {
               console.error("DB Insert Error", JSON.stringify(dbError));
-              // Fallback: App.tsx will try to create it later based on metadata
           }
           
           onLogin(newUser);
+          closeModal();
       } else {
           // 3. Confirmation Required
-          // We cannot upload the photo yet as we don't have a session token for RLS
-          // We rely on metadata passed to signUp for Name/Phone/Type
           setVerificationEmail(regEmail);
+          setModalState('VERIFICATION');
       }
-
-      setIsRegisterOpen(false);
-      resetForms();
 
     } catch (error: any) {
       console.error("Registration error", error);
@@ -183,7 +169,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
-          redirectTo: window.location.origin, // Redirect back to app
+          redirectTo: window.location.origin, 
       });
       if (error) throw error;
       setResetLinkSent(true);
@@ -199,7 +185,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
       try {
         await supabase.auth.signOut();
         onLogout();
-        // Notification handled in context usually, but explicitly calling here
         addNotification({ type: 'auth', title: 'Logged Out', message: 'See you soon!', view: 'DASHBOARD' });
       } catch (error) {
         console.error("Logout error", error);
@@ -235,17 +220,17 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
         </div>
       ) : (
         <div className="flex gap-3 items-center">
-          <Button onClick={() => { resetForms(); setIsLoginOpen(true); }} className="bg-transparent hover:bg-green-700 border border-green-300 text-green-50 hover:text-white text-sm py-2 px-4 transition-all shadow-sm">
+          <Button onClick={() => { resetForms(); setModalState('LOGIN'); }} className="bg-transparent hover:bg-green-700 border border-green-300 text-green-50 hover:text-white text-sm py-2 px-4 transition-all shadow-sm">
             Login
           </Button>
-          <Button onClick={() => { resetForms(); setIsRegisterOpen(true); }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm py-2 px-5 font-bold shadow-md border border-orange-700 transform hover:scale-105 transition-all shadow-orange-900/50">
+          <Button onClick={() => { resetForms(); setModalState('REGISTER'); }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm py-2 px-5 font-bold shadow-md border border-orange-700 transform hover:scale-105 transition-all shadow-orange-900/50">
             Register
           </Button>
         </div>
       )}
 
       {/* Verification Modal */}
-      {verificationEmail && (
+      {modalState === 'VERIFICATION' && verificationEmail && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 text-gray-800">
              <Card className="w-full max-w-md bg-white text-center p-6">
                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
@@ -255,7 +240,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
                  <p className="text-sm text-gray-500 mb-6">
                      We've sent a confirmation link to <span className="font-semibold">{verificationEmail}</span>. Please click it to activate your account.
                  </p>
-                 <Button onClick={() => { setVerificationEmail(null); setIsLoginOpen(true); }} className="w-full bg-green-600 hover:bg-green-700">
+                 <Button onClick={() => { setVerificationEmail(null); setModalState('LOGIN'); }} className="w-full bg-green-600 hover:bg-green-700">
                      Back to Login
                  </Button>
              </Card>
@@ -263,12 +248,12 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
       )}
 
       {/* Forgot Password Modal */}
-      {isForgotPasswordOpen && (
+      {modalState === 'FORGOT_PASSWORD' && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 text-gray-800">
           <Card className="w-full max-w-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900">Reset Password</h3>
-              <button onClick={() => setIsForgotPasswordOpen(false)} className="text-gray-500 hover:text-gray-800">
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-800">
                 <XIcon className="w-6 h-6" />
               </button>
             </div>
@@ -281,7 +266,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
                 <p className="text-gray-700 mb-6">
                    We sent a reset link to <span className="font-semibold">{loginEmail}</span>
                 </p>
-                <Button onClick={switchToLogin} className="w-full bg-green-700 hover:bg-green-800">
+                <Button onClick={() => setModalState('LOGIN')} className="w-full bg-green-700 hover:bg-green-800">
                   Sign In
                 </Button>
               </div>
@@ -312,7 +297,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
                 </Button>
                 <button 
                   type="button" 
-                  onClick={switchToLogin}
+                  onClick={() => { setAuthError(''); setModalState('LOGIN'); }}
                   className="w-full mt-4 text-sm text-gray-500 hover:text-gray-800"
                 >
                   Back to Sign In
@@ -324,12 +309,12 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
       )}
 
       {/* Login Modal */}
-      {isLoginOpen && (
+      {modalState === 'LOGIN' && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 text-gray-800">
           <Card className="w-full max-w-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900">Login</h3>
-              <button onClick={() => setIsLoginOpen(false)} className="text-gray-500 hover:text-gray-800">
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-800">
                 <XIcon className="w-6 h-6" />
               </button>
             </div>
@@ -363,7 +348,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
               <div className="flex justify-end mb-6">
                 <button 
                   type="button" 
-                  onClick={() => { setIsLoginOpen(false); setIsForgotPasswordOpen(true); setAuthError(''); }}
+                  onClick={() => { setAuthError(''); setModalState('FORGOT_PASSWORD'); }}
                   className="text-sm text-green-600 hover:text-green-800 hover:underline font-medium"
                 >
                   Forgot password?
@@ -371,18 +356,22 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
               </div>
 
               <Button type="submit" isLoading={isLoading} className="w-full bg-green-700 hover:bg-green-800 mb-4">Sign In</Button>
+              <div className="text-center mt-2">
+                  <span className="text-sm text-gray-600">Don't have an account? </span>
+                  <button type="button" onClick={() => { resetForms(); setModalState('REGISTER'); }} className="text-sm font-bold text-orange-600 hover:underline">Register</button>
+              </div>
             </form>
           </Card>
         </div>
       )}
 
       {/* Register Modal */}
-      {isRegisterOpen && (
+      {modalState === 'REGISTER' && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 text-gray-800">
           <Card className="w-full max-w-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900">Create Account</h3>
-              <button onClick={() => setIsRegisterOpen(false)} className="text-gray-500 hover:text-gray-800">
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-800">
                 <XIcon className="w-6 h-6" />
               </button>
             </div>
@@ -517,6 +506,10 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
               <Button type="submit" isLoading={isLoading} className="w-full bg-orange-600 hover:bg-orange-700 mb-4">
                 Register
               </Button>
+              <div className="text-center mt-2">
+                  <span className="text-sm text-gray-600">Already have an account? </span>
+                  <button type="button" onClick={() => { resetForms(); setModalState('LOGIN'); }} className="text-sm font-bold text-green-700 hover:underline">Log In</button>
+              </div>
             </form>
           </Card>
         </div>

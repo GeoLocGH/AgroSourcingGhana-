@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Crop, GeoLocation, WeatherForecast, PriceData, AdvisoryStage, ServiceResponse, GroundingSource } from '../types';
+import { Crop, GeoLocation, WeatherForecast, PriceData, AdvisoryStage, ServiceResponse, GroundingSource, PaymentExtractionResult, ReconciliationResult } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -210,7 +210,7 @@ export const getLocalWeather = async (location: GeoLocation): Promise<ServiceRes
       First, identify the Region and weather sector (e.g., Southern, Middle, Northern) in Ghana for latitude ${location.latitude}, longitude ${location.longitude}.
       Then, find the specific regional weather forecast and Agrometeorological Advisory for this area for Today, Tomorrow, and the Day After.
       
-      Look for data similar to regional reports found on sites like 'ghaap.com/weather-forecast/'.
+      Look for data from reliable sources like regional reports found on sites like 'ghaap.com/weather-forecast/'.
       
       Output the result ONLY as a raw valid JSON array of 3 objects. Do NOT use markdown code blocks (like \`\`\`json).
       
@@ -329,5 +329,110 @@ export const getMarketPrices = async (crop: string): Promise<ServiceResponse<Pri
     } catch (e) {
         console.error("Error fetching market prices:", e);
         return { data: [], sources: [] };
+    }
+};
+
+export const parsePaymentSMS = async (smsText: string): Promise<PaymentExtractionResult> => {
+    // This function implements the Payment Automation Expert logic
+    const prompt = `
+    You are the Payment Automation Expert for Agro Sourcing Ghana. Your task is to analyze incoming payment webhook data or SMS notification strings from MTN MoMo and Vodafone Cash.
+
+    Extract the Transaction ID, Amount, and Sender Phone Number.
+
+    Format the data into a JSON object that matches the Supabase transactions table schema.
+
+    If a transaction looks suspicious (e.g., amount mismatch or unclear text), flag it for manual review.
+
+    Input SMS: "${smsText}"
+
+    Output Format (JSON only, no markdown):
+    { 
+        "status": "completed" | "failed" | "flagged", 
+        "amount": number (e.g. 500.00), 
+        "provider_reference": "string (Transaction ID)", 
+        "phone_number": "string (10-12 digits)",
+        "raw_message": "string"
+    }
+    `;
+
+    const callApi = async () => {
+        // FAST_MODEL is sufficient for text extraction
+        const response = await ai.models.generateContent({
+            model: FAST_MODEL,
+            contents: prompt
+        });
+
+        const text = response.text;
+        if (!text) throw new Error("No response from AI");
+
+        let jsonStr = text.trim();
+        if (jsonStr.startsWith('```json')) {
+            jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
+        } else if (jsonStr.startsWith('```')) {
+            jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
+        }
+
+        return JSON.parse(jsonStr) as PaymentExtractionResult;
+    };
+
+    try {
+        return await retryWithBackoff(callApi);
+    } catch (e) {
+        console.error("Error parsing payment SMS:", e);
+        return {
+            status: 'flagged',
+            amount: 0,
+            provider_reference: 'UNKNOWN',
+            phone_number: 'UNKNOWN',
+            raw_message: smsText
+        };
+    }
+};
+
+export const generateReconciliationQuery = async (smsText: string): Promise<ReconciliationResult> => {
+    const prompt = `You are an Agro Sourcing Ghana Support AI. I will provide you with a text snippet from a Mobile Money SMS. Extract the:
+    1. Transaction ID
+    2. Amount (in GHS)
+    3. Date and Time
+    4. Sending Number
+
+    Then, generate a SQL UPDATE statement to change the status of the record in the public.transactions table where provider_reference matches the ID you found. Set the status to 'completed'.
+
+    Input SMS: "${smsText}"
+
+    Output strictly valid JSON (no markdown) with this structure:
+    {
+        "transaction_id": "string",
+        "amount": number,
+        "date": "string",
+        "sender": "string",
+        "sql_query": "string"
+    }
+    `;
+
+    const callApi = async () => {
+        const response = await ai.models.generateContent({
+            model: FAST_MODEL,
+            contents: prompt
+        });
+
+        const text = response.text;
+        if (!text) throw new Error("No response from AI");
+
+        let jsonStr = text.trim();
+        if (jsonStr.startsWith('```json')) {
+            jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
+        } else if (jsonStr.startsWith('```')) {
+            jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
+        }
+
+        return JSON.parse(jsonStr) as ReconciliationResult;
+    };
+
+    try {
+        return await retryWithBackoff(callApi);
+    } catch (e) {
+        console.error("Error generating reconciliation query:", e);
+        throw e;
     }
 };

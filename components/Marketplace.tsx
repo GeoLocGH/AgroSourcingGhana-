@@ -4,6 +4,7 @@ import type { MarketplaceItem, Message, SellerOrder, User, View } from '../types
 import Card from './common/Card';
 import Button from './common/Button';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useGeolocation } from '../hooks/useGeolocation';
 import { fileToDataUri } from '../utils';
 import { uploadUserFile } from '../services/storageService';
 import { supabase } from '../services/supabase';
@@ -21,39 +22,20 @@ import {
     PencilIcon,
     MessageSquareIcon,
     TrashIcon,
-    ChartBarIcon,
-    ClipboardCheckIcon,
-    TagIcon,
     SearchIcon,
     PlusIcon,
     ShoppingCartIcon,
-    ClipboardListIcon,
     Spinner,
     UserCircleIcon,
     ShieldCheckIcon,
     ArrowLeftIcon,
     ArrowRightIcon,
-    HeartIcon
+    HeartIcon,
+    TagIcon
 } from './common/icons';
 
-// Initial data kept for seed reference, code will fetch from Supabase
-const initialMarketplaceItems: Omit<MarketplaceItem, 'id'>[] = [
-  {
-      name: 'Certified Chicken',
-      category: 'Produce',
-      seller: 'Agro Ghana Ltd.',
-      price: 100.00,
-      image_urls: [
-          'https://images.pexels.com/photos/1998927/pexels-photo-1998927.jpeg?auto=compress&cs=tinysrgb&w=600',
-          'https://images.pexels.com/photos/792027/pexels-photo-792027.jpeg?auto=compress&cs=tinysrgb&w=600'
-      ],
-      usage_instructions: 'Free-range, grain-fed broiler chicken. Ready for cooking.',
-      storage_recommendations: 'Refrigerate below 5°C. Consume within 3 days or freeze immediately.',
-      seller_email: 'sales@agroghana.com.gh',
-      seller_phone: '+233 24 123 4567',
-      likes: 5
-  }
-];
+// Declare Leaflet global
+declare const L: any;
 
 type Category = MarketplaceItem['category'] | 'All';
 
@@ -63,10 +45,6 @@ const categories: { name: Category, icon: React.ReactElement }[] = [
     { name: 'Fertilizers', icon: <FertilizerBagIcon className="w-5 h-5" /> },
     { name: 'Tools', icon: <FarmToolIcon className="w-5 h-5" /> },
     { name: 'Produce', icon: <HarvestIcon className="w-5 h-5" /> },
-];
-
-const mockSellerOrders: SellerOrder[] = [
-    { id: 'ORD-2023-001', buyerName: 'Kwame Mensah', itemName: 'Certified Maize Seeds (1kg)', quantity: 2, total: 110.00, date: '2023-10-24', status: 'Pending' },
 ];
 
 interface ChatContext {
@@ -79,12 +57,12 @@ interface ChatContext {
 interface MarketplaceProps {
     user: User | null;
     setActiveView?: (view: View) => void;
+    onRequireLogin: () => void;
 }
 
-const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
+const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequireLogin }) => {
     const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>([]);
     const [loadingItems, setLoadingItems] = useState(true);
-    const [permissionDenied, setPermissionDenied] = useState(false);
 
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<Category>('All');
@@ -93,13 +71,16 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls'>>({ 
+    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'createdAt' | 'likes' | 'userHasLiked'>>({ 
         name: '', 
         category: 'Seeds', 
         seller: user?.name || '', 
         price: 0,
         usage_instructions: '',
-        storage_recommendations: ''
+        storage_recommendations: '',
+        location_lat: undefined,
+        location_lng: undefined,
+        location_name: ''
     });
     
     const [newItemImagePreviews, setNewItemImagePreviews] = useState<string[]>([]);
@@ -123,41 +104,30 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
     const [isLoadingSeller, setIsLoadingSeller] = useState(false);
 
     const [viewMode, setViewMode] = useState<'BUYER' | 'SELLER'>('BUYER');
-    const [sellerOrders, setSellerOrders] = useState<SellerOrder[]>(mockSellerOrders);
+    const [displayFormat, setDisplayFormat] = useState<'GRID' | 'MAP'>('GRID');
+    const [sellerOrders, setSellerOrders] = useState<SellerOrder[]>([]);
 
     const { addNotification } = useNotifications();
+    const { location } = useGeolocation();
 
     const filterRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const editFileInputRef = useRef<HTMLInputElement>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
-
-    const loadFallbackData = () => {
-         // Simply use initial items as fallback
-         const items = initialMarketplaceItems.map((it, idx) => ({ 
-             ...it, 
-             id: `mock-${idx}`, 
-             likes: it.likes || Math.floor(Math.random() * 10), 
-             userHasLiked: false 
-         })) as MarketplaceItem[];
-         setMarketplaceItems(items);
-    };
+    const mapRef = useRef<any>(null);
 
     useEffect(() => {
         setLoadingItems(true);
-        setPermissionDenied(false);
 
         const fetchItems = async () => {
             // Fetch Items
             const { data: itemsData, error: itemsError } = await supabase
                 .from('marketplace')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('createdAt', { ascending: false });
 
             if (itemsError) {
                 console.error("Error fetching items:", JSON.stringify(itemsError));
-                setPermissionDenied(true);
-                loadFallbackData();
                 setLoadingItems(false);
                 return;
             }
@@ -262,6 +232,55 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
         return () => { subscription.unsubscribe(); };
     }, [chatContext, isChatVisible, user?.uid]);
 
+    // Map Initialization
+    useEffect(() => {
+        if (displayFormat === 'MAP' && typeof L !== 'undefined') {
+            // Clean up previous map instance if exists
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
+
+            // Default center (Ghana)
+            const defaultCenter = [7.9465, -1.0232];
+            const center = location ? [location.latitude, location.longitude] : defaultCenter;
+            
+            const map = L.map('marketplace-map').setView(center, location ? 10 : 7);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Add markers
+            const filtered = getFilteredItems();
+            
+            const bounds = L.latLngBounds([]);
+            let hasMarkers = false;
+
+            filtered.forEach(item => {
+                if (item.location_lat && item.location_lng) {
+                    hasMarkers = true;
+                    const marker = L.marker([item.location_lat, item.location_lng])
+                        .addTo(map)
+                        .bindPopup(`
+                            <div class="p-1">
+                                <h3 class="font-bold text-sm">${item.name}</h3>
+                                <p class="text-xs text-gray-600">${item.seller}</p>
+                                <p class="text-sm font-bold text-green-700">GHS ${item.price.toFixed(2)}</p>
+                            </div>
+                        `);
+                    bounds.extend([item.location_lat, item.location_lng]);
+                }
+            });
+
+            if (hasMarkers) {
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+
+            mapRef.current = map;
+        }
+    }, [displayFormat, marketplaceItems, selectedCategory, searchTerm]);
+
     const handleToggleDetails = (id: string) => {
         setExpandedItemId(prevId => (prevId === id ? null : id));
     };
@@ -272,7 +291,17 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
     };
     
     const clearNewItemForm = () => {
-        setNewItem({ name: '', category: 'Seeds', seller: user?.name || '', price: 0, usage_instructions: '', storage_recommendations: '' });
+        setNewItem({ 
+            name: '', 
+            category: 'Seeds', 
+            seller: user?.name || '', 
+            price: 0, 
+            usage_instructions: '', 
+            storage_recommendations: '',
+            location_lat: undefined,
+            location_lng: undefined,
+            location_name: ''
+        });
         setNewItemImagePreviews([]);
         setNewItemFiles([]);
         setError('');
@@ -339,6 +368,36 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
         }
     };
 
+    const handleUseMyLocation = (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (location) {
+            setNewItem(prev => ({
+                ...prev,
+                location_lat: location.latitude,
+                location_lng: location.longitude,
+                location_name: 'Current Location Tagged'
+            }));
+        } else {
+            alert("Could not detect location. Please ensure location services are enabled.");
+        }
+    };
+
+    const handleAddItemClick = () => {
+        if (!user) {
+            onRequireLogin();
+            return;
+        }
+        setIsFormVisible(true);
+    }
+
+    const handleMyStoreClick = () => {
+        if (!user) {
+            onRequireLogin();
+            return;
+        }
+        setViewMode('SELLER');
+    }
+
     const handleAddItem = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newItem.name || !newItem.seller || newItem.price <= 0) {
@@ -347,7 +406,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
         }
 
         if (!user || !user.uid) {
-            setError("You must be logged in to list an item.");
+            onRequireLogin();
             return;
         }
 
@@ -360,7 +419,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                     uploadUserFile(user.uid!, file, 'marketplace', '', `Product: ${newItem.name} (${index+1})`)
                 );
                 const uploadedFiles = await Promise.all(uploadPromises);
-                // Fix: Changed download_url to file_url
                 imageUrls = uploadedFiles.map(f => f.file_url);
             } else {
                 imageUrls = newItemImagePreviews.length > 0 
@@ -371,10 +429,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
             const newItemData = {
                 ...newItem,
                 image_urls: imageUrls,
-                seller_id: user.uid, // Using snake_case
+                seller_id: user.uid,
                 seller_email: user.email,
                 seller_phone: user.phone || '',
-                created_at: new Date().toISOString()
+                createdAt: new Date().toISOString()
             };
 
             const { error: dbError } = await supabase.from('marketplace').insert([newItemData]);
@@ -408,7 +466,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
         if(!itemToEdit) return;
 
         try {
-            // Remove id from update payload
             const { id, likes, userHasLiked, ...dataToUpdate } = itemToEdit;
             
             const { error } = await supabase
@@ -457,7 +514,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
 
     const handleOpenProductChat = (item: MarketplaceItem) => {
         if (!user || !user.uid) {
-            addNotification({ type: 'market', title: 'Login Required', message: 'Please login to message the seller.', view: 'MARKETPLACE' });
+            onRequireLogin();
             return;
         }
 
@@ -551,7 +608,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
         e.stopPropagation();
         
         if (!user || !user.uid) {
-            addNotification({ type: 'auth', title: 'Login Required', message: 'Please login to like items.', view: 'MARKETPLACE' });
+            onRequireLogin();
             return;
         }
 
@@ -590,31 +647,24 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
         }
     };
 
-    const handleShipOrder = (orderId: string) => {
-        setSellerOrders(prev => prev.map(order => 
-            order.id === orderId ? { ...order, status: 'Shipped' } : order
-        ));
-        addNotification({ title: 'Order Updated', message: `Order ${orderId} marked as shipped.`, type: 'market' });
-    };
-
-    const myKeyListings = marketplaceItems.filter(item => item.seller_id === user?.uid || item.seller === (user?.name || 'Agro Ghana Ltd.'));
-
-    const filteredItems = marketplaceItems.filter(item => {
-        if (selectedCategory !== 'All' && item.category !== selectedCategory) {
-            return false;
-        }
-        if (searchTerm) {
-            const lowerSearch = searchTerm.toLowerCase();
-            const nameMatch = item.name.toLowerCase().includes(lowerSearch);
-            const sellerMatch = item.seller.toLowerCase().includes(lowerSearch);
-            if (!nameMatch && !sellerMatch) {
+    const getFilteredItems = () => {
+        return marketplaceItems.filter(item => {
+            if (selectedCategory !== 'All' && item.category !== selectedCategory) {
                 return false;
             }
-        }
-        return true;
-    });
+            if (searchTerm) {
+                const lowerSearch = searchTerm.toLowerCase();
+                const nameMatch = item.name.toLowerCase().includes(lowerSearch);
+                const sellerMatch = item.seller.toLowerCase().includes(lowerSearch);
+                if (!nameMatch && !sellerMatch) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    };
 
-    const sortedItems = [...filteredItems].sort((a, b) => {
+    const sortedItems = [...getFilteredItems()].sort((a, b) => {
         switch (sortOption) {
             case 'Price: Low to High':
                 return a.price - b.price;
@@ -624,7 +674,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                 return a.name.localeCompare(b.name);
             case 'Newest':
             default:
-                if (a.created_at && b.created_at) return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                if (a.createdAt && b.createdAt) return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
                 return 0; 
         }
     });
@@ -652,6 +702,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
         if (!user) return false;
         return user.type === 'admin' || item.seller_id === user.uid || (item.seller === user.name && !item.seller_id);
     }
+
+    const myKeyListings = marketplaceItems.filter(item => item.seller_id === user?.uid || item.seller === (user?.name || 'Agro Ghana Ltd.'));
 
     return (
         <>
@@ -734,6 +786,31 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                                 <input type="number" name="price" placeholder="Price (GHS)" value={newItem.price} onChange={(e) => handleInputChange(e)} required className="mt-1 block w-full px-3 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 
                                 <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Location</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-grow flex items-center px-3 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-700">
+                                            {newItem.location_lat ? (
+                                                <span className="flex items-center text-green-700">
+                                                    <TagIcon className="w-4 h-4 mr-2" />
+                                                    Location Tagged: {newItem.location_lat.toFixed(4)}, {newItem.location_lng?.toFixed(4)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400 italic">No location tagged</span>
+                                            )}
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleUseMyLocation}
+                                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 border border-blue-200 font-medium text-sm flex items-center whitespace-nowrap"
+                                        >
+                                            <GridIcon className="w-4 h-4 mr-2" />
+                                            Use My Location
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Tagging your location helps buyers find items on the map.</p>
+                                </div>
+
+                                <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Usage Instructions (Optional)</label>
                                     <textarea name="usage_instructions" value={newItem.usage_instructions || ''} onChange={(e) => handleInputChange(e)} rows={2} className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
                                 </div>
@@ -772,6 +849,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                 </div>
             )}
             
+            {/* Edit and Delete Modals ommitted for brevity, structure remains same */}
             {isEditModalVisible && itemToEdit && (
                  <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
                     <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -860,22 +938,13 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                 </div>
             )}
             
-            {permissionDenied && (
-                <div className="col-span-full flex justify-center items-center py-4 bg-orange-50 border border-orange-200 rounded-lg mb-4">
-                    <p className="text-orange-700 font-medium text-sm flex items-center">
-                        <ShieldCheckIcon className="w-5 h-5 mr-2" />
-                        Viewing offline/demo data. Log in or check permissions for live updates.
-                    </p>
-                </div>
-            )}
-
             {viewMode === 'SELLER' ? (
                  <div className="space-y-6">
                     <div className="flex justify-between items-center">
                         <h2 className="text-2xl font-bold text-gray-800">My Listings</h2>
                          <div className="flex gap-2">
                              <Button onClick={() => setViewMode('BUYER')} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Switch to Buy</Button>
-                             <Button onClick={() => setIsFormVisible(true)}><PlusIcon className="w-5 h-5 mr-2"/> Add Item</Button>
+                             <Button onClick={handleAddItemClick}><PlusIcon className="w-5 h-5 mr-2"/> Add Item</Button>
                          </div>
                     </div>
                      <Card>
@@ -919,18 +988,20 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                             <p className="text-gray-600">Buy and sell agricultural products.</p>
                         </div>
                         <div className="flex gap-2">
-                             {user?.type !== 'buyer' && (
-                                <Button onClick={() => setViewMode('SELLER')} className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
+                             {/* Check user type but default show if not logged in so they click and get prompt */}
+                             {(!user || user.type !== 'buyer') && (
+                                <Button onClick={handleMyStoreClick} className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
                                     My Store
                                 </Button>
                              )}
-                             <Button onClick={() => setIsFormVisible(true)} className="bg-green-600 hover:bg-green-700 whitespace-nowrap">
+                             <Button onClick={handleAddItemClick} className="bg-green-600 hover:bg-green-700 whitespace-nowrap">
                                 <PlusIcon className="w-5 h-5 mr-2" /> Sell Item
                              </Button>
                         </div>
                      </div>
 
                      <div className="flex flex-col md:flex-row gap-4">
+                         {/* Search bar code same as before */}
                          <div className="relative flex-grow">
                              <input 
                                 type="text" 
@@ -978,6 +1049,25 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                                  <option>Price: High to Low</option>
                                  <option>Name: A-Z</option>
                              </select>
+                             <div className="flex rounded-lg border border-gray-300 bg-white overflow-hidden">
+                                 <button 
+                                    onClick={() => setDisplayFormat('GRID')}
+                                    className={`px-3 py-2 ${displayFormat === 'GRID' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                    title="Grid View"
+                                 >
+                                     <GridIcon className="w-5 h-5" />
+                                 </button>
+                                 <button 
+                                    onClick={() => setDisplayFormat('MAP')}
+                                    className={`px-3 py-2 ${displayFormat === 'MAP' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                                    title="Map View"
+                                 >
+                                     {/* Map Icon - reusing TagIcon for now or similar */}
+                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                                     </svg>
+                                 </button>
+                             </div>
                          </div>
                      </div>
 
@@ -993,7 +1083,13 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                          ))}
                      </div>
                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {/* Map View */}
+                     <div className={`transition-all duration-300 ${displayFormat === 'MAP' ? 'block' : 'hidden'}`}>
+                         <div id="marketplace-map" style={{ height: '500px', width: '100%', borderRadius: '0.75rem', zIndex: 0 }} className="border border-gray-300 shadow-sm"></div>
+                     </div>
+
+                     {/* Grid View */}
+                     <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-300 ${displayFormat === 'GRID' ? 'block' : 'hidden'}`}>
                                 {loadingItems ? (
                                     <div className="col-span-full flex justify-center py-20">
                                         <Spinner className="w-10 h-10 text-green-600" />
@@ -1007,6 +1103,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                                 ) : (
                                     sortedItems.map(item => (
                                     <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
+                                         {/* Card content structure same as before */}
                                          <div className="relative h-48 -mx-6 -mt-6 mb-4 bg-gray-100 group">
                                             {canManageItem(item) && (
                                                 <div className="absolute top-2 left-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

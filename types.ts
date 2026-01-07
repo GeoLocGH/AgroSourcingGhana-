@@ -69,9 +69,12 @@ export interface MarketplaceItem {
   seller_email?: string;
   seller_phone?: string;
   seller_id?: string;
-  created_at?: string;
+  createdAt?: string;
   likes?: number;
   userHasLiked?: boolean;
+  location_lat?: number;
+  location_lng?: number;
+  location_name?: string;
 }
 
 export interface AdvisoryStage {
@@ -163,9 +166,6 @@ export interface ServiceResponse<T> {
     sources: GroundingSource[];
 }
 
-/**
- * Added missing Message interface
- */
 export interface Message {
   id: number;
   sender: 'user' | 'seller';
@@ -173,9 +173,6 @@ export interface Message {
   timestamp: string;
 }
 
-/**
- * Added missing SellerOrder interface
- */
 export interface SellerOrder {
   id: string;
   buyerName: string;
@@ -186,9 +183,6 @@ export interface SellerOrder {
   status: 'Pending' | 'Shipped' | 'Delivered';
 }
 
-/**
- * Added missing Inquiry interface
- */
 export interface Inquiry {
   id?: string;
   user_id: string | null;
@@ -200,4 +194,40 @@ export interface Inquiry {
   message: string;
   status: string;
   created_at?: string;
+}
+
+/**
+ * Payment & Transaction Types
+ */
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'flagged';
+
+export interface Transaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  provider: 'MTN' | 'Telecel' | 'AirtelTigo' | string;
+  provider_reference: string;
+  status: PaymentStatus;
+  phone_number: string;
+  created_at: string;
+  // Optional fields for UI backward compatibility
+  type?: 'DEPOSIT' | 'WITHDRAWAL' | 'PAYMENT' | 'TRANSFER';
+  description?: string;
+}
+
+export interface PaymentExtractionResult {
+  status: PaymentStatus;
+  amount: number;
+  provider_reference: string;
+  phone_number: string;
+  raw_message?: string;
+}
+
+export interface ReconciliationResult {
+    transaction_id: string;
+    amount: number;
+    date: string;
+    sender: string;
+    sql_query: string;
 }

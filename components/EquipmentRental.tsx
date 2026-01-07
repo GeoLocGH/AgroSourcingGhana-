@@ -17,9 +17,10 @@ interface ChatContext {
 
 interface EquipmentRentalProps {
     user: User | null;
+    onRequireLogin: () => void;
 }
 
-const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user }) => {
+const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin }) => {
   const [items, setItems] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -170,7 +171,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user }) => {
 
   const openAddForm = () => {
       if (!user) {
-          addNotification({ type: 'auth', title: 'Login Required', message: 'Please login to list equipment.', view: 'RENTAL' });
+          onRequireLogin();
           return;
       }
       setIsEditMode(false);

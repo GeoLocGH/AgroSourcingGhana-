@@ -7,7 +7,7 @@ import Marketplace from './components/Marketplace';
 import Dashboard from './components/Dashboard';
 import CropAdvisory from './components/CropAdvisory';
 import CommunityForum from './components/CommunityForum';
-import Auth from './components/Auth';
+import Auth, { AuthModalState } from './components/Auth';
 import EquipmentRental from './components/EquipmentRental';
 import DigitalWallet from './components/DigitalWallet';
 import AdminDashboard from './components/AdminDashboard';
@@ -15,7 +15,7 @@ import Orders from './components/Orders';
 import Profile from './components/Profile';
 import { NotificationProvider } from './contexts/NotificationContext';
 import NotificationArea from './components/NotificationArea';
-import { HomeIcon, CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, TractorIcon, WalletIcon, ClipboardListIcon, ShieldCheckIcon, UploadIcon, CheckCircleIcon, XIcon } from './components/common/icons';
+import { HomeIcon, CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, TractorIcon, WalletIcon, ClipboardListIcon, ShieldCheckIcon, UploadIcon, CheckCircleIcon, XIcon, AgroLogoIcon } from './components/common/icons';
 import type { View, User } from './types';
 import { supabase } from './services/supabase';
 import { uploadUserFile } from './services/storageService';
@@ -49,6 +49,9 @@ const NavItem: React.FC<NavItemProps> = ({ view, label, icon, activeView, setAct
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('DASHBOARD');
   const [user, setUser] = useState<User | null>(null);
+  
+  // Auth Modal State managed centrally to allow triggers from any component
+  const [authModalState, setAuthModalState] = useState<AuthModalState>('CLOSED');
   
   // App Logo State
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -99,7 +102,7 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (_event === 'PASSWORD_RECOVERY') {
-            // Handle password recovery specific logic if needed
+            setAuthModalState('FORGOT_PASSWORD');
         }
         handleSession(session);
     });
@@ -220,6 +223,21 @@ const App: React.FC = () => {
       }
   };
 
+  // Helper to open login modal from children
+  const handleRequireLogin = () => {
+      setAuthModalState('LOGIN');
+  };
+
+  // Wrapper for setActiveView to gate restricted views like Forum (if strictly needed)
+  // The prompt asks to trigger login on clicking "Forum". Assuming this means the Nav Item.
+  const handleSetActiveView = (view: View) => {
+      if (view === 'FORUM' && !user) {
+          handleRequireLogin();
+          return;
+      }
+      setActiveView(view);
+  };
+
   const renderView = () => {
     switch (activeView) {
       case 'WEATHER':
@@ -229,13 +247,13 @@ const App: React.FC = () => {
       case 'DIAGNOSIS':
         return <PestDiagnosis user={user} />;
       case 'MARKETPLACE':
-        return <Marketplace user={user} setActiveView={setActiveView} />;
+        return <Marketplace user={user} setActiveView={setActiveView} onRequireLogin={handleRequireLogin} />;
       case 'ADVISORY':
         return <CropAdvisory />;
       case 'FORUM':
         return <CommunityForum user={user} />;
       case 'RENTAL':
-        return <EquipmentRental user={user} />;
+        return <EquipmentRental user={user} onRequireLogin={handleRequireLogin} />;
       case 'WALLET':
         return <DigitalWallet user={user} />;
       case 'ORDERS':
@@ -246,7 +264,7 @@ const App: React.FC = () => {
         return <Profile user={user} setUser={setUser} onLogout={handleLogout} setActiveView={setActiveView} />;
       case 'DASHBOARD':
       default:
-        return <Dashboard setActiveView={setActiveView} user={user} />;
+        return <Dashboard setActiveView={handleSetActiveView} user={user} />;
     }
   };
 
@@ -262,7 +280,7 @@ const App: React.FC = () => {
                  {/* Title Section */}
                  <div onClick={() => setActiveView('DASHBOARD')} className="cursor-pointer hover:opacity-90 transition-opacity z-10 relative">
                   <h1 className="text-xl sm:text-2xl font-bold tracking-tight">AgroSourcingGhana℠</h1>
-                  <p className="text-xs sm:text-sm text-green-100">Your Partner in Farming Success!</p>
+                  <p className="text-xs sm:text-sm text-green-100">Localized, Actionable Insights for Farmers</p>
                 </div>
 
                 {/* Central Logo Placeholder */}
@@ -275,26 +293,25 @@ const App: React.FC = () => {
                         className="hidden" 
                     />
                     <div 
-                        className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-2 border-green-600/50 bg-green-900/50 overflow-hidden shadow-inner transition-all ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-400 hover:scale-105' : ''}`}
+                        className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-2 border-green-400/30 bg-green-900 overflow-hidden shadow-xl transition-all ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-400 hover:scale-105 group' : ''}`}
                         onClick={() => user?.type === 'admin' && !isUploadingLogo && !pendingFile && logoInputRef.current?.click()}
                         title={user?.type === 'admin' ? "Admin: Click to upload PNG logo" : "AgroSourcingGhana Logo"}
                     >
                         {currentDisplayLogo ? (
                             <img src={currentDisplayLogo} alt="App Logo" className={`w-full h-full object-cover ${isUploadingLogo ? 'opacity-50' : ''}`} />
                         ) : (
-                            <div className="flex flex-col items-center justify-center text-green-200/40">
-                                {user?.type === 'admin' ? (
-                                    <>
-                                        <UploadIcon className="w-5 h-5 mb-1" />
-                                        <span className="text-[8px] font-bold">{isUploadingLogo ? '...' : 'LOGO'}</span>
-                                    </>
-                                ) : (
-                                    <SproutIcon className="w-8 h-8 opacity-50" />
+                            <div className="w-full h-full flex items-center justify-center relative bg-green-900">
+                                <AgroLogoIcon className="w-full h-full" />
+                                {user?.type === 'admin' && (
+                                     <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <UploadIcon className="w-6 h-6 text-white mb-1" />
+                                          <span className="text-[8px] font-bold text-white">UPLOAD</span>
+                                     </div>
                                 )}
                             </div>
                         )}
                         {isUploadingLogo && (
-                            <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                                 <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
                             </div>
                         )}
@@ -323,23 +340,30 @@ const App: React.FC = () => {
 
                 {/* Auth Section */}
                 <div className="z-10 relative">
-                  <Auth user={user} onLogin={handleLogin} onLogout={handleLogout} setActiveView={setActiveView} />
+                  <Auth 
+                    user={user} 
+                    onLogin={handleLogin} 
+                    onLogout={handleLogout} 
+                    setActiveView={setActiveView} 
+                    modalState={authModalState}
+                    setModalState={setAuthModalState}
+                  />
                 </div>
              </div>
 
              {/* Navigation Bar */}
              <nav className="max-w-5xl mx-auto bg-white border-b border-x border-gray-200 shadow-lg rounded-b-xl mb-8 relative z-20">
                <div className="flex justify-start sm:justify-around p-2 space-x-1 overflow-x-auto no-scrollbar">
-                 <NavItem view="DASHBOARD" label="Home" icon={<HomeIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="WEATHER" label="Weather" icon={<CloudIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="MARKETPLACE" label="Marketplace" icon={<ShoppingCartIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="RENTAL" label="Rental" icon={<TractorIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="WALLET" label="Wallet" icon={<WalletIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="FORUM" label="Forum" icon={<UsersIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="ADVISORY" label="Advisory" icon={<SproutIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="DIAGNOSIS" label="Diagnose" icon={<BugIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="PRICES" label="Prices" icon={<TagIcon />} activeView={activeView} setActiveView={setActiveView} />
-                 <NavItem view="ADMIN" label="Admin" icon={<ShieldCheckIcon />} activeView={activeView} setActiveView={setActiveView} />
+                 <NavItem view="DASHBOARD" label="Home" icon={<HomeIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="WEATHER" label="Weather" icon={<CloudIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="MARKETPLACE" label="Marketplace" icon={<ShoppingCartIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="RENTAL" label="Rental" icon={<TractorIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="WALLET" label="Wallet" icon={<WalletIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="FORUM" label="Forum" icon={<UsersIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="ADVISORY" label="Advisory" icon={<SproutIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="DIAGNOSIS" label="Diagnose" icon={<BugIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="PRICES" label="Prices" icon={<TagIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                 <NavItem view="ADMIN" label="Admin" icon={<ShieldCheckIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
                </div>
              </nav>
 
