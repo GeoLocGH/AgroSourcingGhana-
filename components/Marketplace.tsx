@@ -31,7 +31,8 @@ import {
     ArrowLeftIcon,
     ArrowRightIcon,
     HeartIcon,
-    TagIcon
+    TagIcon,
+    CreditCardIcon
 } from './common/icons';
 
 // Declare Leaflet global
@@ -429,12 +430,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                     : ['https://placehold.co/600x400/eeeeee/cccccc?text=No+Image'];
             }
 
-            // Logic to handle Manual & GPS Input
-            // In our state, newItem.location_lat/lng holds the value from either source (GPS auto-fill or manual type)
+            // Dual input logic check:
+            // newItem.location_lat/lng holds the value from either "Auto-Detect" OR "Manual Entry".
+            // If the user manually types, it overrides; if they click auto-detect, it fills.
             const finalLat = newItem.location_lat;
             const finalLng = newItem.location_lng;
-            // Default location name if missing but coords are present
-            const finalLocationName = newItem.location_name || (finalLat && finalLng ? "Pinned Location" : "Accra (Agbogbloshie)");
+            
+            // Fallback for Location Name to "Accra (Agbogbloshie)" if missing but coords exist
+            const finalLocationName = newItem.location_name || (finalLat && finalLng ? "Accra (Agbogbloshie)" : "");
 
             const newItemData = {
                 title: newItem.title,
@@ -450,8 +453,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 seller_name: user.name || 'Anonymous',
                 seller_email: user.email,
                 seller_phone: user.phone || '',
-                merchant_id: user.merchant_id || null,
-                createdAt: new Date().toISOString() // Explicitly set createdAt
+                merchant_id: user.merchant_id || null, // Auto-included if user has it
+                createdAt: new Date().toISOString()
             };
 
             const { error: dbError } = await supabase.from('marketplace').insert([newItemData]);
@@ -564,6 +567,39 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             participants: [user.uid, item.owner_id]
         });
         setIsChatVisible(true);
+    };
+
+    const handleBuyItem = (item: MarketplaceItem) => {
+        if (!user) {
+            onRequireLogin();
+            return;
+        }
+
+        if (item.owner_id === user.uid) {
+            addNotification({ type: 'market', title: 'Error', message: 'You cannot buy your own item.', view: 'MARKETPLACE' });
+            return;
+        }
+
+        if (!item.merchant_id) {
+            addNotification({ type: 'market', title: 'Unavailable', message: 'This seller has not set up payments yet.', view: 'MARKETPLACE' });
+            return;
+        }
+
+        // Simulate secure routing logic
+        const paymentData = {
+            amount: item.price,
+            recipient: item.merchant_id,
+            item: item.title
+        };
+
+        // In a real app, this would route to DigitalWallet with paymentData pre-filled
+        // For simulation:
+        addNotification({ 
+            type: 'wallet', 
+            title: 'Payment Initiated', 
+            message: `Securely routing GHS ${item.price} to Merchant ${item.merchant_id}... Check Wallet for confirmation.`, 
+            view: 'WALLET' 
+        });
     };
 
     const handleOpenOrderChat = (order: SellerOrder) => {
@@ -1196,8 +1232,17 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                          <div className="flex justify-between items-start mb-2">
                                             <div>
                                                 <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{item.title}</h3>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <p className="text-sm text-blue-600 hover:underline cursor-pointer font-medium" onClick={(e) => handleSellerClick(e, item)}>{item.seller_name}</p>
+                                                    
+                                                    {/* Verified Merchant Badge */}
+                                                    {item.merchant_id && (
+                                                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200" title={`Verified Merchant ID: ${item.merchant_id}`}>
+                                                            <ShieldCheckIcon className="w-3 h-3" />
+                                                            VERIFIED
+                                                        </span>
+                                                    )}
+
                                                     {(item.likes || 0) > 0 && (
                                                         <span className="text-xs text-red-500 font-medium flex items-center gap-0.5">
                                                             <HeartIcon className="w-3 h-3" filled={true} /> {item.likes}
@@ -1214,12 +1259,20 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                             </div>
                                         )}
                                         <div className="mt-auto pt-4 flex gap-2">
-                                            <Button onClick={() => handleToggleDetails(item.id)} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs py-2">
-                                                {expandedItemId === item.id ? 'Less Info' : 'View Details'}
+                                            <Button onClick={() => handleToggleDetails(item.id)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-2">
+                                                {expandedItemId === item.id ? 'Less Info' : 'Details'}
                                             </Button>
-                                            <Button onClick={() => handleOpenProductChat(item)} className="flex-1 text-xs py-2">
-                                                <MessageSquareIcon className="w-4 h-4 mr-1 inline" /> Contact
-                                            </Button>
+                                            
+                                            {/* Buy Now Button - Routes payment automatically if merchant exists */}
+                                            {item.merchant_id ? (
+                                                <Button onClick={() => handleBuyItem(item)} className="flex-1 bg-green-700 hover:bg-green-800 text-xs py-2 shadow-sm font-bold">
+                                                    <CreditCardIcon className="w-4 h-4 mr-1 inline" /> Buy Now
+                                                </Button>
+                                            ) : (
+                                                <Button onClick={() => handleOpenProductChat(item)} className="flex-1 bg-orange-600 hover:bg-orange-700 text-xs py-2">
+                                                    <MessageSquareIcon className="w-4 h-4 mr-1 inline" /> Contact
+                                                </Button>
+                                            )}
                                         </div>
                                     </Card>
                                     ))

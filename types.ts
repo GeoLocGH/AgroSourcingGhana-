@@ -25,6 +25,7 @@ export interface User {
   type: UserType;
   merchant_id?: string;
   messaging_enabled?: boolean;
+  network?: string; // Updated from momo_network
 }
 
 export interface GeoLocation {

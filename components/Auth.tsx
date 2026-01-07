@@ -39,6 +39,9 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
   const [regRepeatPass, setRegRepeatPass] = useState('');
   const [regType, setRegType] = useState<'buyer' | 'seller' | 'farmer' | 'admin'>('buyer');
   const [regPhoto, setRegPhoto] = useState<File | null>(null);
+  const [regNetwork, setRegNetwork] = useState('MTN');
+
+  const networks = ['MTN', 'Telecel', 'AirtelTigo'];
 
   const resetForms = () => {
     setLoginEmail('');
@@ -49,6 +52,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
     setRegPass('');
     setRegRepeatPass('');
     setRegPhoto(null);
+    setRegNetwork('MTN');
     setAuthError('');
     setIsLoading(false);
     setResetLinkSent(false);
@@ -101,7 +105,11 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
     setIsLoading(true);
 
     try {
-      // 1. Sign Up
+      // 0. Auto-generate Secure Merchant ID
+      const randomSuffix = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const generatedMerchantId = `AGRO-PAY-${randomSuffix}`;
+
+      // 1. Sign Up - Passing metadata as requested
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: regEmail,
           password: regPass,
@@ -109,7 +117,9 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               data: {
                   full_name: regName,
                   phone: regPhone,
-                  user_type: regType
+                  network: regNetwork, 
+                  user_type: regType,
+                  merchant_id: generatedMerchantId // Saved in metadata
               }
           }
       });
@@ -128,7 +138,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   const fileData = await uploadUserFile(userId, regPhoto, 'profile', '', 'Profile Photo');
                   profilePhotoUrl = fileData.file_url;
                   
-                  // Save to metadata as fallback since DB schema might lack photo_url
                   await supabase.auth.updateUser({ data: { avatar_url: profilePhotoUrl } });
 
               } catch(e) {
@@ -136,21 +145,23 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               }
           }
 
+          // We manually upsert here to ensure immediate consistency for the UI, 
+          // even if a database trigger also exists to handle metadata copying.
           const newUserDB = {
-              id: userId, // Use 'id' matching DB schema
+              id: userId, 
               name: regName,
               email: regEmail,
               phone: regPhone,
-              type: regType
-              // EXCLUDE photo_url to prevent Schema Error (PGRST204)
+              type: regType,
+              network: regNetwork,
+              merchant_id: generatedMerchantId
           };
 
           const { error: dbError } = await supabase.from('users').upsert([newUserDB]);
           if (dbError) {
-              console.error("DB Insert Error", JSON.stringify(dbError));
+              console.error("DB Insert Error (Trigger might have handled it)", JSON.stringify(dbError));
           }
           
-          // Map 'id' back to 'uid' for frontend state
           onLogin({ ...newUserDB, uid: userId, photo_url: profilePhotoUrl } as User);
           closeModal();
       } else {
@@ -426,7 +437,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               </div>
               
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-900 bg-white mb-1">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-900 bg-white mb-1">Phone Number (MoMo Wallet)</label>
                 <input
                   type="tel"
                   value={regPhone}
@@ -434,6 +445,17 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   placeholder="024XXXXXXX"
                   className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-900 bg-white mb-1">Mobile Money Network</label>
+                <select
+                  value={regNetwork}
+                  onChange={(e) => setRegNetwork(e.target.value)}
+                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {networks.map(net => <option key={net} value={net}>{net}</option>)}
+                </select>
               </div>
 
               <div className="mb-4">
@@ -512,7 +534,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                 Register
               </Button>
               <div className="text-center mt-2">
-                  <span className="text-sm text-gray-600">Already have an account? </span>
+                  <span className="text-sm text-gray-600">Don't have an account? </span>
                   <button type="button" onClick={() => { resetForms(); setModalState('LOGIN'); }} className="text-sm font-bold text-green-700 hover:underline">Log In</button>
               </div>
             </form>

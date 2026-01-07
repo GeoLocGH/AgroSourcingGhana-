@@ -178,11 +178,11 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                   full_name: formData.name, 
                   avatar_url: finalPhotoURL,
                   phone: formData.phone,
-                  merchant_id: user.type === 'seller' ? formData.merchant_id : undefined
+                  // Do NOT update merchant_id here to prevent override, only read it
               }
           });
           
-          setUser({ ...user, ...updates, merchant_id: formData.merchant_id, photo_url: finalPhotoURL } as User);
+          setUser({ ...user, ...updates, photo_url: finalPhotoURL } as User);
           setIsEditing(false);
           addNotification({ type: 'auth', title: 'Updated', message: 'Profile saved.', view: 'PROFILE' });
       } catch (error: any) {
@@ -258,9 +258,20 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                        <form onSubmit={handleUpdateProfile} className="w-full space-y-3 mt-2">
                            <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Full Name" />
                            <input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Phone" />
-                           {user.type === 'seller' && (
-                               <input value={formData.merchant_id} onChange={e => setFormData({...formData, merchant_id: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Merchant ID" />
+                           
+                           {/* READ-ONLY MERCHANT ID */}
+                           {user.merchant_id && (
+                               <div className="relative">
+                                   <label className="text-[10px] text-gray-500 font-bold absolute -top-1.5 left-2 bg-white px-1">MERCHANT ID (LOCKED)</label>
+                                   <input 
+                                        value={formData.merchant_id} 
+                                        readOnly 
+                                        className="w-full border p-2 rounded text-sm text-gray-500 bg-gray-100 cursor-not-allowed font-mono" 
+                                        title="Contact Support to change Merchant ID"
+                                   />
+                               </div>
                            )}
+
                            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-200">
                                <input 
                                     type="checkbox" 
@@ -296,7 +307,12 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                               <div><label className="text-xs text-gray-500 uppercase">Email</label><p className="font-medium">{user.email}</p></div>
                               <div><label className="text-xs text-gray-500 uppercase">Phone</label><p className="font-medium">{user.phone || 'Not set'}</p></div>
                               {user.merchant_id && (
-                                  <div><label className="text-xs text-gray-500 uppercase">Merchant ID</label><p className="font-medium">{user.merchant_id}</p></div>
+                                  <div>
+                                      <label className="text-xs text-gray-500 uppercase flex items-center gap-1">
+                                          Merchant ID <ShieldCheckIcon className="w-3 h-3 text-blue-500" />
+                                      </label>
+                                      <p className="font-medium font-mono text-blue-800 bg-blue-50 inline-block px-2 rounded border border-blue-100">{user.merchant_id}</p>
+                                  </div>
                               )}
                               <div>
                                   <label className="text-xs text-gray-500 uppercase">Messaging</label>
