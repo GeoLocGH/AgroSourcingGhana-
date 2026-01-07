@@ -505,12 +505,40 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
           </div>
 
           {qrMode === 'MY_CODE' ? (
-              <div className="bg-white p-8 rounded-2xl shadow-lg inline-block border border-gray-100">
-                  <div className="border-4 border-gray-900 p-2 rounded-xl mb-4">
-                      <QrCodeIcon className="w-48 h-48 text-gray-900" />
+              <div className="flex flex-col items-center">
+                  <div className="relative group">
+                      {/* Outer Glow/Ring */}
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-blue-600 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
+                      
+                      {/* Card Container */}
+                      <div className="relative bg-white p-6 rounded-2xl shadow-xl border border-gray-100 flex flex-col items-center">
+                          {/* QR Code Image */}
+                          <div className="bg-white p-1 rounded-lg">
+                             <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(user?.phone || user?.uid || 'AGRO_USER')}&margin=2`}
+                                alt="Payment QR" 
+                                className="w-56 h-56 object-contain"
+                             />
+                          </div>
+                          
+                          {/* User Info */}
+                          <div className="mt-5 text-center">
+                              <h3 className="text-lg font-bold text-gray-900 flex items-center justify-center gap-1.5">
+                                  {user?.name}
+                                  {user?.merchant_id && <ShieldCheckIcon className="w-4 h-4 text-blue-500" title="Verified Merchant" />}
+                              </h3>
+                              <p className="text-sm text-gray-500 font-mono tracking-wider mt-1">{user?.phone || 'No Phone Linked'}</p>
+                          </div>
+                      </div>
+                      
+                      {/* Central Logo Overlay (Simulated) */}
+                      <div className="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-[60%] w-10 h-10 bg-white rounded-full p-1 shadow-md border border-gray-200 flex items-center justify-center">
+                          <div className="w-full h-full bg-gray-900 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
+                              Ag
+                          </div>
+                      </div>
                   </div>
-                  <p className="font-bold text-gray-800 text-lg">{user?.name}</p>
-                  <p className="text-gray-500">{user?.phone}</p>
+                  <p className="text-sm text-gray-500 mt-6">Scan to pay instantly</p>
               </div>
           ) : (
               <div className="bg-black rounded-2xl aspect-square flex flex-col items-center justify-center relative overflow-hidden">
