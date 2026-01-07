@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import type { MarketplaceItem, Message, SellerOrder, User, View } from '../types';
 import Card from './common/Card';
@@ -361,7 +360,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView }) => {
                     uploadUserFile(user.uid!, file, 'marketplace', '', `Product: ${newItem.name} (${index+1})`)
                 );
                 const uploadedFiles = await Promise.all(uploadPromises);
-                imageUrls = uploadedFiles.map(f => f.download_url);
+                // Fix: Changed download_url to file_url
+                imageUrls = uploadedFiles.map(f => f.file_url);
             } else {
                 imageUrls = newItemImagePreviews.length > 0 
                     ? newItemImagePreviews 

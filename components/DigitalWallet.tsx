@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
@@ -149,6 +150,8 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
             view: 'WALLET'
           });
           setLoanAmount('');
+    } else {
+        addNotification({ type: 'wallet', title: 'Invalid Amount', message: 'Please enter a valid loan amount.', view: 'WALLET' });
     }
   };
   
@@ -164,6 +167,8 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
             view: 'WALLET'
           });
           setAmount('');
+      } else {
+          addNotification({ type: 'wallet', title: 'Invalid Transaction', message: 'Check amount or balance.', view: 'WALLET' });
       }
   }
 
@@ -188,6 +193,8 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
           setMerchantId('');
       } else if (val > balance) {
           addNotification({ type: 'wallet', title: 'Insufficient Funds', message: 'Balance not enough to make payment.', view: 'WALLET' });
+      } else {
+          addNotification({ type: 'wallet', title: 'Invalid Amount', message: 'Please enter a valid amount.', view: 'WALLET' });
       }
   }
 
@@ -251,7 +258,10 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
 
   const handleDeposit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedAccount || !amount) return;
+      if (!selectedAccount || !amount || parseFloat(amount) <= 0) {
+          addNotification({ type: 'wallet', title: 'Invalid Input', message: 'Select an account and enter a valid amount.', view: 'WALLET' });
+          return;
+      }
       setShowOtpModal(true);
   };
 
@@ -268,7 +278,10 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
   const handleWithdrawInput = (e: React.FormEvent) => {
       e.preventDefault();
       const val = parseFloat(amount);
-      if (!selectedAccount || !val) return;
+      if (!selectedAccount || !val || val <= 0) {
+           addNotification({ type: 'wallet', title: 'Invalid Input', message: 'Enter a valid amount.', view: 'WALLET' });
+           return;
+      }
       if (val > balance) {
            addNotification({ type: 'wallet', title: 'Insufficient Funds', message: 'Amount exceeds available balance.', view: 'WALLET' });
            return;

@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import type { User, View } from '../types';
 import Button from './common/Button';
@@ -136,7 +135,8 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView }) =
           if (regPhoto) {
               try {
                   const fileData = await uploadUserFile(userId, regPhoto, 'profile', '', 'Profile Photo');
-                  profilePhotoUrl = fileData.download_url;
+                  // Fix: Changed download_url to file_url
+                  profilePhotoUrl = fileData.file_url;
               } catch(e) {
                   console.warn("Photo upload failed during reg", e);
               }

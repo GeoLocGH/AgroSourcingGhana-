@@ -1,11 +1,12 @@
 
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Crop, GeoLocation, WeatherForecast, PriceData, AdvisoryStage, ServiceResponse, GroundingSource } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const model = 'gemini-2.5-flash';
+// Fix: Use gemini-3-pro-preview for complex reasoning tasks and gemini-3-flash-preview for general text/search tasks as per guidelines
+const COMPLEX_MODEL = 'gemini-3-pro-preview';
+const FAST_MODEL = 'gemini-3-flash-preview';
 
 // Helper to extract sources from grounding metadata
 const extractSources = (response: any): GroundingSource[] => {
@@ -78,8 +79,9 @@ export const diagnosePlant = async (imageBase64: string, mimeType: string): Prom
       text: DIAGNOSIS_PROMPT,
     };
 
+    // Fix: Use COMPLEX_MODEL (gemini-3-pro-preview) for image-based reasoning
     const response = await ai.models.generateContent({
-      model: model,
+      model: COMPLEX_MODEL,
       contents: { parts: [imagePart, textPart] },
     });
 
@@ -124,13 +126,12 @@ export const getAdvisory = async (crop: Crop, plantingDate: string, location: Ge
   `;
 
   const callApi = async () => {
+     // Fix: Use FAST_MODEL (gemini-3-flash-preview) for general search-grounded text tasks
      const response = await ai.models.generateContent({
-      model: model,
+      model: FAST_MODEL,
       contents: ADVISORY_PROMPT,
       config: {
         tools: [{ googleSearch: {} }],
-        // responseMimeType cannot be used with googleSearch tools for this model configuration sometimes, 
-        // relying on manual JSON parsing for robustness with search grounding.
       },
      });
      
@@ -177,8 +178,9 @@ export const checkWeatherAlerts = async (location: GeoLocation): Promise<string>
   const prompt = `Search for current severe weather warnings, floods, drought alerts, or extreme heat advisories specifically for agricultural areas in Ghana near latitude ${location.latitude}, longitude ${location.longitude}. Summarize any active alerts in one short sentence. If there are no active severe alerts, simply say "No active severe weather alerts at this time."`;
 
   const callApi = async () => {
+    // Fix: Use FAST_MODEL (gemini-3-flash-preview)
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: FAST_MODEL,
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -227,8 +229,9 @@ export const getLocalWeather = async (location: GeoLocation): Promise<ServiceRes
     `;
 
     const callApi = async () => {
+        // Fix: Use FAST_MODEL (gemini-3-flash-preview)
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: FAST_MODEL,
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
@@ -296,8 +299,9 @@ export const getMarketPrices = async (crop: string): Promise<ServiceResponse<Pri
     `;
 
     const callApi = async () => {
+         // Fix: Use FAST_MODEL (gemini-3-flash-preview)
          const response = await ai.models.generateContent({
-             model: 'gemini-2.5-flash',
+             model: FAST_MODEL,
              contents: prompt,
              config: { tools: [{ googleSearch: {} }] }
          });

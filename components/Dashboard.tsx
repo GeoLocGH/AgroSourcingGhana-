@@ -83,7 +83,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
     setIsUploading(true);
     try {
         const result = await uploadUserFile(user.uid, file, 'admin-logo', '', 'Dashboard Widget Logo');
-        const url = result.download_url;
+        // Fix: Changed download_url to file_url
+        const url = result.file_url;
         
         await supabase.from('settings').upsert({ id: 'dashboard', value: { logoUrl: url } });
         

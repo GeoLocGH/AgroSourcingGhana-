@@ -192,7 +192,8 @@ const App: React.FC = () => {
           'App Header Logo Upload'
         );
         
-        const newLogoUrl = uploadedFile.download_url;
+        // Fix: Changed download_url to file_url as per UserFile type definition
+        const newLogoUrl = uploadedFile.file_url;
         
         // Save to 'settings' table
         await supabase

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { EquipmentType, EquipmentItem, Message, User, Inquiry } from '../types';
 import Card from './common/Card';
@@ -199,7 +198,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user }) => {
           try {
               if (user && user.uid && itemImageFile) {
                   const uploadedFile = await uploadUserFile(user.uid, itemImageFile, 'rental', '', `Rental: ${currentItem.name}`);
-                  imageUrl = uploadedFile.download_url;
+                  // Fix: Changed download_url to file_url
+                  imageUrl = uploadedFile.file_url;
               }
 
               if (isEditMode && currentItem.id) {

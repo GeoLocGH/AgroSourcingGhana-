@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { ForumPost, ForumReply, User } from '../types';
 import Card from './common/Card';
@@ -77,7 +76,8 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                 uploadUserFile(user.uid!, file, 'forum', '', `Post: ${newPostTitle} (${index + 1})`)
             );
             const results = await Promise.all(uploadPromises);
-            uploadedUrls = results.map(f => f.download_url);
+            // Fix: Changed download_url to file_url
+            uploadedUrls = results.map(f => f.file_url);
         }
 
         const newPostData = {
@@ -119,7 +119,8 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                 uploadUserFile(user.uid!, file, 'forum', '', `Reply to Post #${selectedPostId}`)
              );
              const results = await Promise.all(uploadPromises);
-             uploadedUrls = results.map(f => f.download_url);
+             // Fix: Changed download_url to file_url
+             uploadedUrls = results.map(f => f.file_url);
           }
 
           const newReply: ForumReply = {
