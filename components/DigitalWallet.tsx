@@ -381,11 +381,11 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
               <div className="space-y-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                   <div>
                       <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Account / Meter Number</label>
-                      <input value={reference} onChange={e => setReference(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none" placeholder="e.g. 123456789" />
+                      <input value={reference} onChange={e => setReference(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900" placeholder="e.g. 123456789" />
                   </div>
                   <div>
                       <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
-                      <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none" placeholder="0.00" />
+                      <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900" placeholder="0.00" />
                   </div>
                   <Button onClick={() => handleTransactionStart('PAYMENT', parseFloat(amount), `Bill: ${BILL_PROVIDERS.find(p => p.id === selectedProvider)?.name}`)} className="w-full bg-yellow-600 hover:bg-yellow-700">
                       Pay Bill
@@ -406,7 +406,7 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
           <div className="space-y-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
               <div>
                   <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Loan Amount</label>
-                  <input type="number" max={creditLimit} value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0.00" />
+                  <input type="number" max={creditLimit} value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" placeholder="0.00" />
                   <div className="flex justify-between mt-1 text-xs text-gray-400">
                       <span>Min: GHS 50</span>
                       <span>Max: GHS {creditLimit}</span>
@@ -470,7 +470,7 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
                     {mode === 'DEPOSIT' ? 'From Account' : 'To Account'}
                 </label>
-                <select value={selectedAccount} onChange={e => setSelectedAccount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none">
+                <select value={selectedAccount} onChange={e => setSelectedAccount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900">
                     <option value="">Select Linked Account</option>
                     {linkedAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.provider} - {acc.accountNumber}</option>)}
                 </select>
@@ -478,7 +478,7 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
             </div>
             <div>
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
-                <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="0.00" />
+                <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900" placeholder="0.00" />
             </div>
             <Button onClick={() => handleTransactionStart(mode === 'WITHDRAW' ? 'WITHDRAWAL' : mode, parseFloat(amount), `${mode === 'DEPOSIT' ? 'Deposit from' : 'Withdrawal to'} Linked Account`)} className={`w-full ${mode === 'DEPOSIT' ? 'bg-green-600' : 'bg-red-600'}`}>
                 Confirm {mode === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'}
@@ -594,11 +594,11 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
                <div className="max-w-md mx-auto animate-fade-in">
                    <h3 className="text-lg font-bold mb-4">Link New Account</h3>
                    <div className="bg-white p-5 rounded-xl border space-y-4">
-                       <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)} className="w-full p-3 border rounded-lg bg-white">
+                       <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)} className="w-full p-3 border rounded-lg bg-white text-gray-900">
                            <option value="">Select Provider</option>
                            {[...NETWORKS, ...BANKS].map(p => <option key={p} value={p}>{p}</option>)}
                        </select>
-                       <input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Account/Phone Number" className="w-full p-3 border rounded-lg" />
+                       <input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Account/Phone Number" className="w-full p-3 border rounded-lg text-gray-900" />
                        <Button onClick={handleLinkAccount} className="w-full">Link Account</Button>
                    </div>
                </div>
@@ -608,8 +608,8 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
               <div className="max-w-md mx-auto animate-fade-in">
                   <h3 className="text-lg font-bold mb-4">Send Money</h3>
                   <div className="bg-white p-5 rounded-xl border space-y-4">
-                       <input type="tel" value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Recipient Phone (024...)" className="w-full p-3 border rounded-lg" />
-                       <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (GHS)" className="w-full p-3 border rounded-lg" />
+                       <input type="tel" value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Recipient Phone (024...)" className="w-full p-3 border rounded-lg text-gray-900" />
+                       <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (GHS)" className="w-full p-3 border rounded-lg text-gray-900" />
                        <Button onClick={() => handleTransactionStart('TRANSFER', parseFloat(amount), `Transfer to ${recipient}`)} className="w-full bg-blue-600 hover:bg-blue-700">Next</Button>
                   </div>
               </div>
@@ -637,7 +637,7 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
           {activeView === 'VERIFY_SMS' && (
             <div className="max-w-md mx-auto animate-fade-in">
                 <h3 className="text-lg font-bold mb-4">Verify Payment SMS</h3>
-                <textarea value={smsText} onChange={e => setSmsText(e.target.value)} rows={4} className="w-full p-3 border rounded-lg mb-4" placeholder="Paste SMS..." />
+                <textarea value={smsText} onChange={e => setSmsText(e.target.value)} rows={4} className="w-full p-3 border rounded-lg mb-4 text-gray-900" placeholder="Paste SMS..." />
                 <Button onClick={async () => {
                     const res = await parsePaymentSMS(smsText);
                     setVerificationResult(res);

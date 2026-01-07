@@ -1316,7 +1316,26 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                          {expandedItemId === item.id && (
                                             <div className="mt-2 mb-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-md animate-fade-in">
                                                 <p className="mb-2"><strong>Usage:</strong> {item.usage_instructions || 'No instructions'}</p>
-                                                <p><strong>Storage:</strong> {item.storage_recommendations || 'No recommendations'}</p>
+                                                <p className="mb-2"><strong>Storage:</strong> {item.storage_recommendations || 'No recommendations'}</p>
+                                                {(item.seller_phone || item.seller_email) && (
+                                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Seller Contact Info</p>
+                                                        <div className="flex flex-col sm:flex-row gap-3">
+                                                            {item.seller_phone && (
+                                                                <div className="flex items-center gap-2">
+                                                                    <PhoneIcon className="w-4 h-4 text-green-600" />
+                                                                    <span className="font-medium text-gray-800">{item.seller_phone}</span>
+                                                                </div>
+                                                            )}
+                                                            {item.seller_email && (
+                                                                <div className="flex items-center gap-2">
+                                                                    <MailIcon className="w-4 h-4 text-blue-600" />
+                                                                    <span className="font-medium text-gray-800">{item.seller_email}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                         <div className="mt-auto pt-4 flex gap-2">

@@ -465,14 +465,14 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     placeholder="Search by name or location..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-gray-900"
                 />
                 <SearchIcon className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
             </div>
             <select 
                 value={selectedType} 
                 onChange={(e) => setSelectedType(e.target.value as EquipmentType | 'All')}
-                className="p-2 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                className="p-2 border border-gray-300 rounded-lg bg-white text-gray-900 outline-none focus:ring-2 focus:ring-indigo-500"
             >
                 <option value="All">All Types</option>
                 {Object.values(EquipmentType).map(type => (
@@ -543,26 +543,49 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     <form onSubmit={isEditMode ? handleUpdateItem : handleAddItem} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Equipment Name</label>
-                            <input required type="text" value={currentItem.name} onChange={e => setCurrentItem({...currentItem, name: e.target.value})} className="w-full border p-2 rounded" />
+                            <input 
+                                required 
+                                type="text" 
+                                value={currentItem.name} 
+                                onChange={e => setCurrentItem({...currentItem, name: e.target.value})} 
+                                className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                            />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Type</label>
-                                <select value={currentItem.type} onChange={e => setCurrentItem({...currentItem, type: e.target.value as EquipmentType})} className="w-full border p-2 rounded bg-white">
+                                <select 
+                                    value={currentItem.type} 
+                                    onChange={e => setCurrentItem({...currentItem, type: e.target.value as EquipmentType})} 
+                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                >
                                     {Object.values(EquipmentType).map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Price per Day (GHS)</label>
-                                <input required type="number" value={currentItem.price_per_day} onChange={e => setCurrentItem({...currentItem, price_per_day: parseFloat(e.target.value)})} className="w-full border p-2 rounded" />
+                                <input 
+                                    required 
+                                    type="number" 
+                                    value={currentItem.price_per_day} 
+                                    onChange={e => setCurrentItem({...currentItem, price_per_day: parseFloat(e.target.value)})} 
+                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                />
                             </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Location Name</label>
-                            <input required type="text" value={currentItem.location} onChange={e => setCurrentItem({...currentItem, location: e.target.value})} className="w-full border p-2 rounded" placeholder="e.g. Kumasi Central" />
+                            <input 
+                                required 
+                                type="text" 
+                                value={currentItem.location} 
+                                onChange={e => setCurrentItem({...currentItem, location: e.target.value})} 
+                                className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                placeholder="e.g. Kumasi Central" 
+                            />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-gray-50 p-3 rounded border">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-gray-50 p-3 rounded border border-gray-200">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">GPS Coordinates (Optional)</label>
                                  <button 
@@ -580,7 +603,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                                     step="any"
                                     value={currentItem.location_lat ?? ''} 
                                     onChange={e => setCurrentItem({...currentItem, location_lat: e.target.value ? parseFloat(e.target.value) : undefined})} 
-                                    className="w-full border p-2 rounded bg-white text-sm" 
+                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
                                     placeholder="0.000000"
                                 />
                             </div>
@@ -591,7 +614,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                                     step="any"
                                     value={currentItem.location_lng ?? ''} 
                                     onChange={e => setCurrentItem({...currentItem, location_lng: e.target.value ? parseFloat(e.target.value) : undefined})} 
-                                    className="w-full border p-2 rounded bg-white text-sm" 
+                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
                                     placeholder="0.000000"
                                 />
                             </div>
@@ -599,7 +622,12 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Description</label>
-                            <textarea value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} className="w-full border p-2 rounded" rows={3}></textarea>
+                            <textarea 
+                                value={currentItem.description} 
+                                onChange={e => setCurrentItem({...currentItem, description: e.target.value})} 
+                                className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                rows={3}
+                            ></textarea>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Image</label>
@@ -646,10 +674,10 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                         <button onClick={() => setIsInquiryVisible(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
                     </div>
                     <form onSubmit={submitInquiry} className="space-y-3">
-                        <input required placeholder="Your Name" value={inquiryForm.name} onChange={e => setInquiryForm({...inquiryForm, name: e.target.value})} className="w-full border p-2 rounded" />
-                        <input required placeholder="Email" type="email" value={inquiryForm.email} onChange={e => setInquiryForm({...inquiryForm, email: e.target.value})} className="w-full border p-2 rounded" />
-                        <input required placeholder="Phone" type="tel" value={inquiryForm.phone} onChange={e => setInquiryForm({...inquiryForm, phone: e.target.value})} className="w-full border p-2 rounded" />
-                        <textarea required placeholder="Message" value={inquiryForm.message} onChange={e => setInquiryForm({...inquiryForm, message: e.target.value})} className="w-full border p-2 rounded" rows={3}></textarea>
+                        <input required placeholder="Your Name" value={inquiryForm.name} onChange={e => setInquiryForm({...inquiryForm, name: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900" />
+                        <input required placeholder="Email" type="email" value={inquiryForm.email} onChange={e => setInquiryForm({...inquiryForm, email: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900" />
+                        <input required placeholder="Phone" type="tel" value={inquiryForm.phone} onChange={e => setInquiryForm({...inquiryForm, phone: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900" />
+                        <textarea required placeholder="Message" value={inquiryForm.message} onChange={e => setInquiryForm({...inquiryForm, message: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900" rows={3}></textarea>
                         <Button type="submit" isLoading={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700">Send Inquiry</Button>
                     </form>
                 </Card>
@@ -686,7 +714,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                             value={currentMessage}
                             onChange={(e) => setCurrentMessage(e.target.value)}
                             placeholder="Type your message..."
-                            className="flex-grow border p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-white !text-gray-900"
                         />
                         <Button type="submit" isLoading={isSending}>Send</Button>
                     </form>

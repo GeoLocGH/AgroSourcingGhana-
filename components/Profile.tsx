@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon } from './common/icons';
+import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon, PhoneIcon, MailIcon } from './common/icons';
 import type { User, UserFile, MarketplaceItem, EquipmentItem, View, Transaction } from '../types';
 import { supabase } from '../services/supabase';
 import { getUserFiles, deleteUserFile, uploadUserFile, getFreshDownloadUrl } from '../services/storageService';
@@ -208,7 +208,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       }
   };
 
-  if (!user) return <p className="text-center p-8">Please log in to view your profile.</p>;
+  if (!user) return <p className="text-center p-8 text-white">Please log in to view your profile.</p>;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -216,8 +216,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
         <div className="flex items-center gap-3">
             <div className="p-3 bg-green-100 rounded-full text-green-700"><UserIcon className="w-8 h-8" /></div>
             <div>
-                <h2 className="text-2xl font-bold text-gray-800">My Profile</h2>
-                <p className="text-sm text-gray-500">Manage your account and activities</p>
+                <h2 className="text-2xl font-bold text-gray-200">My Profile</h2>
+                <p className="text-sm text-gray-400">Manage your account and activities</p>
             </div>
         </div>
         <Button onClick={onLogout} className="bg-gray-200 !text-gray-900 hover:bg-gray-300 w-full md:w-auto">Logout</Button>
@@ -256,8 +256,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                        </>
                    ) : (
                        <form onSubmit={handleUpdateProfile} className="w-full space-y-3 mt-2">
-                           <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Full Name" />
-                           <input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Phone" />
+                           <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border p-2 rounded text-sm bg-white text-gray-900" placeholder="Full Name" />
+                           <input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border p-2 rounded text-sm bg-white text-gray-900" placeholder="Phone" />
                            
                            {/* READ-ONLY MERCHANT ID */}
                            {user.merchant_id && (
@@ -292,7 +292,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
           </div>
 
           <div className="lg:col-span-3">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Added text-gray-900 to ensure visibility on white background as parent is dark mode */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden text-gray-900">
                   <div className="flex border-b overflow-x-auto no-scrollbar">
                       <button onClick={() => setActiveTab('DETAILS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'DETAILS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Account Details</button>
                       <button onClick={() => setActiveTab('LISTINGS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LISTINGS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>My Listings</button>
@@ -409,10 +410,80 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                       )}
                       
                       {activeTab === 'LISTINGS' && (
-                           <div>
-                               {myListings.map(item => <p key={item.id} className="border-b py-2">{item.title} - GHS {item.price}</p>)}
-                               {myListings.length === 0 && !loadingListings && <p className="text-gray-400 text-center py-4">No listings found.</p>}
+                           <div className="space-y-8">
+                               {loadingListings ? (
+                                   <p className="text-center text-gray-500 py-4">Loading listings...</p>
+                               ) : (
+                                   <>
+                                       <div>
+                                           <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2">
+                                               <ShoppingCartIcon className="w-5 h-5 text-gray-500"/> Marketplace Products
+                                           </h4>
+                                           <div className="space-y-3">
+                                               {myListings.length > 0 ? myListings.map(item => (
+                                                   <div key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                                                       <img src={item.image_urls?.[0] || 'https://placehold.co/50'} alt={item.title} className="w-12 h-12 rounded object-cover border border-gray-200" />
+                                                       <div className="flex-grow">
+                                                           <p className="font-bold text-gray-900">{item.title}</p>
+                                                           <p className="text-sm text-green-700 font-bold">GHS {item.price.toFixed(2)}</p>
+                                                           <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
+                                                               {item.seller_phone && (
+                                                                   <span className="flex items-center gap-1 bg-green-50 px-1.5 py-0.5 rounded text-green-700 border border-green-100">
+                                                                       <PhoneIcon className="w-3 h-3"/> {item.seller_phone}
+                                                                   </span>
+                                                               )}
+                                                               {item.seller_email && (
+                                                                   <span className="flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded text-blue-700 border border-blue-100">
+                                                                       <MailIcon className="w-3 h-3"/> {item.seller_email}
+                                                                   </span>
+                                                               )}
+                                                           </div>
+                                                       </div>
+                                                       <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full whitespace-nowrap">{item.category}</span>
+                                                   </div>
+                                               )) : <p className="text-sm text-gray-500 italic text-center py-2">No products listed.</p>}
+                                           </div>
+                                       </div>
+
+                                       <div>
+                                           <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2">
+                                               <TractorIcon className="w-5 h-5 text-gray-500"/> Rental Equipment
+                                           </h4>
+                                           <div className="space-y-3">
+                                               {myEquipment.length > 0 ? myEquipment.map(item => (
+                                                   <div key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                                                       <img src={item.image_url || 'https://placehold.co/50'} alt={item.name} className="w-12 h-12 rounded object-cover border border-gray-200" />
+                                                       <div className="flex-grow">
+                                                           <p className="font-bold text-gray-900">{item.name}</p>
+                                                           <p className="text-sm text-indigo-700 font-bold">GHS {item.price_per_day.toFixed(2)} / day</p>
+                                                       </div>
+                                                       <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full">{item.type}</span>
+                                                   </div>
+                                               )) : <p className="text-sm text-gray-500 italic text-center py-2">No equipment listed.</p>}
+                                           </div>
+                                       </div>
+                                   </>
+                               )}
                            </div>
+                      )}
+                      
+                      {activeTab === 'LIKES' && (
+                          <div className="space-y-3">
+                              {loadingLikes ? <p className="text-center text-gray-500 py-4">Loading favorites...</p> : likedItems.length > 0 ? (
+                                  likedItems.map(item => (
+                                      <div key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
+                                          <img src={item.image_urls?.[0] || 'https://placehold.co/50'} alt={item.title} className="w-12 h-12 rounded object-cover border" />
+                                          <div className="flex-grow">
+                                              <p className="font-bold text-gray-900">{item.title}</p>
+                                              <p className="text-sm text-green-700">GHS {item.price.toFixed(2)}</p>
+                                          </div>
+                                          <HeartIcon className="w-5 h-5 text-red-500" filled={true} />
+                                      </div>
+                                  ))
+                              ) : (
+                                  <p className="text-center text-gray-500 py-8">No items liked yet.</p>
+                              )}
+                          </div>
                       )}
                   </div>
               </div>

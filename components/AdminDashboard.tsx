@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
@@ -79,7 +80,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     value={reportInput}
                     onChange={(e) => setReportInput(e.target.value)}
                     rows={8}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-mono bg-gray-50 mb-3"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-mono bg-gray-50 text-gray-900 mb-3"
                     placeholder="Click 'Fetch Live DB Data' or paste CSV/JSON here..."
                 />
                 <Button onClick={handleGenerateReport} isLoading={reportLoading} className="bg-blue-600 hover:bg-blue-700 w-full mb-4">
