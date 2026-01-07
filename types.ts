@@ -99,10 +99,10 @@ export interface PaymentExtractionResult {
 
 export interface MarketplaceItem {
   id: string;
-  title: string; // Changed from name
+  title: string;
   category: 'Seeds' | 'Fertilizers' | 'Tools' | 'Produce' | 'All';
-  seller_name: string; // Changed from seller
-  owner_id: string; // Changed from seller_id
+  seller_name: string;
+  owner_id: string;
   seller_email?: string;
   seller_phone?: string;
   price: number;
@@ -111,8 +111,8 @@ export interface MarketplaceItem {
   location_lat?: number;
   location_lng?: number;
   location_name?: string;
-  image_urls?: string[]; // Ensure this matches DB
-  created_at?: string; // Standard Supabase timestamp
+  image_urls?: string[];
+  createdAt?: string; // Corrected to match DB schema (camelCase)
   likes?: number;
   userHasLiked?: boolean;
   merchant_id?: string | null;
@@ -185,7 +185,7 @@ export interface EquipmentItem {
   image_url?: string;
   available: boolean;
   description?: string;
-  created_at?: string;
+  createdAt?: string; // Corrected to match DB schema (camelCase)
 }
 
 export interface Inquiry {

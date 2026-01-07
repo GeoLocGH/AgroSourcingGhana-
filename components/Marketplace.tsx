@@ -71,7 +71,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'created_at' | 'likes' | 'userHasLiked' | 'owner_id' | 'seller_name'>>({ 
+    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'createdAt' | 'likes' | 'userHasLiked' | 'owner_id' | 'seller_name'>>({ 
         title: '', 
         category: 'Seeds', 
         price: 0,
@@ -119,14 +119,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         setLoadingItems(true);
 
         const fetchItems = async () => {
-            // Fetch Items
+            // Fetch Items - ordered by createdAt (camelCase) as per error message hint
             const { data: itemsData, error: itemsError } = await supabase
                 .from('marketplace')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('createdAt', { ascending: false });
 
             if (itemsError) {
-                console.error("Error fetching items:", JSON.stringify(itemsError));
+                console.error("Error fetching items:", JSON.stringify(itemsError, null, 2));
                 setLoadingItems(false);
                 return;
             }
@@ -357,7 +357,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>, isEdit = false) => {
         const { name, value } = e.target;
-        const processedValue = name === 'price' ? parseFloat(value) : value;
+        let processedValue: any = value;
+        
+        // Parse numbers for price and coordinates
+        if (name === 'price' || name === 'location_lat' || name === 'location_lng') {
+             processedValue = value === '' ? undefined : parseFloat(value);
+        }
 
         if (isEdit && itemToEdit) {
             setItemToEdit(prev => ({ ...prev!, [name]: processedValue }));
@@ -373,10 +378,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 ...prev,
                 location_lat: location.latitude,
                 location_lng: location.longitude,
-                location_name: 'Current Location Tagged'
+                location_name: prev.location_name || 'Current Location'
             }));
         } else {
-            alert("Could not detect location. Please ensure location services are enabled.");
+            alert("Could not detect location. Please ensure location services are enabled, or enter coordinates manually.");
         }
     };
 
@@ -424,23 +429,29 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                     : ['https://placehold.co/600x400/eeeeee/cccccc?text=No+Image'];
             }
 
-            // Updated to match schema: title, owner_id, seller_name, image_urls
+            // Logic to handle Manual & GPS Input
+            // In our state, newItem.location_lat/lng holds the value from either source (GPS auto-fill or manual type)
+            const finalLat = newItem.location_lat;
+            const finalLng = newItem.location_lng;
+            // Default location name if missing but coords are present
+            const finalLocationName = newItem.location_name || (finalLat && finalLng ? "Pinned Location" : "Accra (Agbogbloshie)");
+
             const newItemData = {
                 title: newItem.title,
                 price: newItem.price,
                 category: newItem.category,
                 usage_instructions: newItem.usage_instructions,
                 storage_recommendations: newItem.storage_recommendations,
-                location_lat: newItem.location_lat,
-                location_lng: newItem.location_lng,
-                location_name: newItem.location_name,
+                location_lat: finalLat,
+                location_lng: finalLng,
+                location_name: finalLocationName,
                 image_urls: imageUrls,
                 owner_id: user.uid,
                 seller_name: user.name || 'Anonymous',
                 seller_email: user.email,
                 seller_phone: user.phone || '',
-                merchant_id: user.merchant_id || null
-                // Note: We don't send created_at, let DB default to now()
+                merchant_id: user.merchant_id || null,
+                createdAt: new Date().toISOString() // Explicitly set createdAt
             };
 
             const { error: dbError } = await supabase.from('marketplace').insert([newItemData]);
@@ -449,9 +460,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
             setIsFormVisible(false);
             clearNewItemForm();
-            addNotification({ title: 'Item Listed', message: `${newItem.title} added successfully.`, type: 'market' });
+            
+            const successMsg = finalLat && finalLng ? "Listing successfully tagged to the map!" : `${newItem.title} added successfully.`;
+            addNotification({ title: 'Item Listed', message: successMsg, type: 'market' });
         } catch (error: any) {
-            console.error("Error adding item:", error);
+            console.error("Submission Error:", JSON.stringify(error, null, 2));
             setError(`Failed to list item. Error: ${error.message || 'Unknown'}`);
         } finally {
             setIsSubmitting(false);
@@ -474,7 +487,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         if(!itemToEdit) return;
 
         try {
-            const { id, likes, userHasLiked, created_at, ...dataToUpdate } = itemToEdit;
+            const { id, likes, userHasLiked, createdAt, ...dataToUpdate } = itemToEdit;
             
             const { error } = await supabase
                 .from('marketplace')
@@ -688,7 +701,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 return a.title.localeCompare(b.title);
             case 'Newest':
             default:
-                if (a.created_at && b.created_at) return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                if (a.createdAt && b.createdAt) return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
                 return 0; 
         }
     });
@@ -800,27 +813,55 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                 
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Item Location</label>
-                                    <div className="flex gap-2">
-                                        <div className="flex-grow flex items-center px-3 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-700">
-                                            {newItem.location_lat ? (
-                                                <span className="flex items-center text-green-700">
-                                                    <TagIcon className="w-4 h-4 mr-2" />
-                                                    Location Tagged: {newItem.location_lat.toFixed(4)}, {newItem.location_lng?.toFixed(4)}
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-400 italic">No location tagged</span>
-                                            )}
+                                    
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex gap-2">
+                                             <button 
+                                                type="button" 
+                                                onClick={handleUseMyLocation}
+                                                className="w-full md:w-auto px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 border border-blue-200 font-medium text-sm flex items-center justify-center whitespace-nowrap mb-1"
+                                            >
+                                                <GridIcon className="w-4 h-4 mr-2" />
+                                                Auto-Detect Location
+                                            </button>
                                         </div>
-                                        <button 
-                                            type="button" 
-                                            onClick={handleUseMyLocation}
-                                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 border border-blue-200 font-medium text-sm flex items-center whitespace-nowrap"
-                                        >
-                                            <GridIcon className="w-4 h-4 mr-2" />
-                                            Use My Location
-                                        </button>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <input 
+                                                    type="number" 
+                                                    step="any"
+                                                    name="location_lat" 
+                                                    placeholder="Latitude (e.g. 5.6037)" 
+                                                    value={newItem.location_lat ?? ''} 
+                                                    onChange={(e) => handleInputChange(e)} 
+                                                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <input 
+                                                    type="number" 
+                                                    step="any"
+                                                    name="location_lng" 
+                                                    placeholder="Longitude (e.g. -0.1870)" 
+                                                    value={newItem.location_lng ?? ''} 
+                                                    onChange={(e) => handleInputChange(e)} 
+                                                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                />
+                                            </div>
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            name="location_name" 
+                                            placeholder="Location Name (e.g. Makola Market, Accra)" 
+                                            value={newItem.location_name || ''} 
+                                            onChange={(e) => handleInputChange(e)} 
+                                            className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Coordinates are automatically filled if you allow location access, or you can enter them manually.
+                                        </p>
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-1">Tagging your location helps buyers find items on the map.</p>
                                 </div>
 
                                 <div className="md:col-span-2">

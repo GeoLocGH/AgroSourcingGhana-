@@ -69,11 +69,11 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
     setLoading(true);
     const fetchItems = async () => {
         try {
-            // Revert to standard 'created_at' as we are relying on default timestamps now
+            // Updated to order by 'createdAt' to match schema convention
             const { data, error } = await supabase
                 .from('equipment')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('createdAt', { ascending: false });
             
             if (error) {
                 console.error("Error fetching equipment:", JSON.stringify(error, null, 2));
@@ -309,8 +309,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                  // Insert new item with ownerId
                  if (!user?.uid) throw new Error("User ID missing");
 
-                 // Ensure we use 'created_at' to match schema conventions or default
-                 // We don't send created_at here, let DB default
+                 // Ensure we use 'createdAt' to match schema conventions
                  const { error } = await supabase.from('equipment').insert([{
                     name: currentItem.name,
                     type: currentItem.type as EquipmentType,
@@ -320,7 +319,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     price_per_day: Number(currentItem.price_per_day),
                     image_url: imageUrl,
                     available: true,
-                    description: currentItem.description || ''
+                    description: currentItem.description || '',
+                    createdAt: new Date().toISOString() // Explicitly set createdAt
                 }]);
                 
                 if (error) throw error;
@@ -328,7 +328,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               }
               setIsFormVisible(false);
           } catch (error: any) {
-              console.error("Error submitting equipment:", error);
+              console.error("Error submitting equipment:", JSON.stringify(error, null, 2));
               addNotification({ type: 'rental', title: 'Error', message: `Failed to save equipment: ${error.message}`, view: 'RENTAL' });
           } finally {
               setIsSubmitting(false);
