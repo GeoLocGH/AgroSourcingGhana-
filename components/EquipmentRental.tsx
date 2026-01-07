@@ -14,6 +14,7 @@ interface ChatContext {
     name: string;
     subject: string;
     participants?: string[];
+    receiverId?: string; // Explicit receiver ID for reliability
 }
 
 interface EquipmentRentalProps {
@@ -63,6 +64,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   const [chatContext, setChatContext] = useState<ChatContext | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,36 +105,61 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
   // Chat Listener
   useEffect(() => {
-    if (!chatContext?.id || !isChatVisible) return;
+    if (!chatContext?.id || !isChatVisible || !user?.uid) return;
 
     const fetchMessages = async () => {
         const { data, error } = await supabase
             .from('chats')
             .select('*')
-            .eq('id', chatContext.id)
-            .single();
+            .eq('item_id', chatContext.id)
+            .order('created_at', { ascending: true });
         
-        if (data && data.messages) {
-             const mappedMessages: Message[] = data.messages.map((msg: any, index: number) => ({
-                id: index,
-                sender: msg.senderId === user?.uid ? 'user' : 'seller',
-                text: msg.text,
-                timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        if (data) {
+             const mappedMessages: Message[] = data.map((msg: any, index: number) => ({
+                id: msg.id || index,
+                sender: msg.sender_id === user.uid ? 'user' : 'seller',
+                text: msg.message_text,
+                timestamp: msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'
             }));
             setMessages(mappedMessages);
         } else {
             setMessages([]);
         }
     };
-
-    const subscription = supabase
-        .channel(`chat:${chatContext.id}`)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chats', filter: `id=eq.${chatContext.id}` }, fetchMessages)
-        .subscribe();
-
     fetchMessages();
 
-    return () => { subscription.unsubscribe(); };
+    const channel = supabase
+        .channel(`chat_equipment:${chatContext.id}`)
+        .on(
+            'postgres_changes', 
+            { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'chats', 
+                filter: `item_id=eq.${chatContext.id}` 
+            }, 
+            (payload) => {
+                const newRecord = payload.new;
+                const newMessage: Message = {
+                    id: newRecord.id,
+                    sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
+                    text: newRecord.message_text,
+                    timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                };
+
+                setMessages((prev) => [...prev, newMessage]);
+
+                // Play notification sound if message is incoming
+                if (newRecord.sender_id !== user.uid) {
+                     try {
+                        new Audio('/notification.mp3').play().catch(() => {});
+                     } catch(e) {}
+                }
+            }
+        )
+        .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [chatContext, isChatVisible, user?.uid]);
 
 
@@ -195,40 +222,66 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       }
 
       setChatContext({
-          id: item.id,
+          id: String(item.id),
           name: item.owner,
           subject: item.name,
-          participants: [user.uid, item.owner_id || '']
+          participants: [user.uid, item.owner_id || ''],
+          receiverId: item.owner_id
       });
       setIsChatVisible(true);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!currentMessage.trim() || !chatContext || !user?.uid) return;
+      if (!currentMessage.trim() || !chatContext) return;
 
-      const newMessage = {
-          senderId: user.uid,
-          text: currentMessage,
-          timestamp: Date.now()
-      };
+      setIsSending(true);
+
+      // 1. Get the current logged-in user securely
+      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !currentUser) {
+          addNotification({ type: 'rental', title: 'Authentication Error', message: 'Please log in again.', view: 'RENTAL' });
+          setIsSending(false);
+          return;
+      }
+
+      // 2. Identify Receiver
+      const receiverId = chatContext.receiverId || chatContext.participants?.find(p => p !== currentUser.id);
+      
+      // 3. Log data to console for debugging as requested
+      console.log("Sender:", currentUser.id);
+      console.log("Receiver:", receiverId);
+      console.log("Item:", chatContext.id);
+
+      // --- Strict Validation Checklist ---
+      if (!chatContext.id) {
+          console.error("Missing Item ID (Chat Context ID)");
+          setIsSending(false);
+          return;
+      }
+      if (!receiverId) {
+          console.error("Missing Receiver ID. Participants:", chatContext.participants);
+          setIsSending(false);
+          return;
+      }
 
       try {
-          const { data: currentChat } = await supabase.from('chats').select('messages').eq('id', chatContext.id).single();
-          const existingMessages = currentChat?.messages || [];
+          const { error } = await supabase.from('chats').insert([{
+              sender_id: currentUser.id,
+              receiver_id: receiverId,
+              item_id: String(chatContext.id), // Ensure string format
+              message_text: currentMessage.trim()
+          }]);
           
-          await supabase.from('chats').upsert({
-              id: chatContext.id,
-              participants: chatContext.participants,
-              subject: chatContext.subject,
-              last_updated: new Date().toISOString(),
-              messages: [...existingMessages, newMessage]
-          });
-
+          if (error) throw error;
+          
           setCurrentMessage('');
-      } catch (err) {
-          console.error("Error sending message:", err);
+      } catch (err: any) {
+          console.error("Chat Error:", err.message);
           addNotification({ type: 'rental', title: 'Error', message: 'Failed to send message.', view: 'RENTAL' });
+      } finally {
+          setIsSending(false);
       }
   };
 
@@ -575,7 +628,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                             placeholder="Type your message..."
                             className="flex-grow border p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
                         />
-                        <Button type="submit">Send</Button>
+                        <Button type="submit" isLoading={isSending}>Send</Button>
                     </form>
                 </div>
             </div>
