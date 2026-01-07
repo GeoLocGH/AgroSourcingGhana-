@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import Weather from './components/Weather';
 import PriceAlerts from './components/PriceAlerts';
@@ -141,7 +142,8 @@ const App: React.FC = () => {
                   id: session.user.id,
                   name: meta.full_name || 'User',
                   email: session.user.email || '',
-                  phone: meta.phone || '',
+                  // Check phone AND phone_number for robustness
+                  phone: meta.phone || meta.phone_number || '',
                   type: type
               };
               

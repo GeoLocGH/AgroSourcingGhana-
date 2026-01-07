@@ -102,6 +102,11 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
         return;
     }
 
+    if (!regPhone) {
+        setAuthError("Phone number is required.");
+        return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -110,6 +115,8 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
       const generatedMerchantId = `AGRO-PAY-${randomSuffix}`;
 
       // 1. Sign Up - Passing metadata as requested
+      // Note: We include avatar_url as empty string to prevent potential null pointer issues in some DB triggers
+      // Added phone_number to satisfy potential DB triggers that expect this specific key
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: regEmail,
           password: regPass,
@@ -117,14 +124,51 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               data: {
                   full_name: regName,
                   phone: regPhone,
+                  phone_number: regPhone, 
                   network: regNetwork, 
                   user_type: regType,
-                  merchant_id: generatedMerchantId // Saved in metadata
+                  merchant_id: generatedMerchantId,
+                  avatar_url: '' 
               }
           }
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+          // If the error is "Database error saving new user", it often comes from a failed postgres trigger.
+          // Sometimes the user is created in Auth despite this error. We can try to login to check.
+          if (signUpError.message && signUpError.message.includes("Database error saving new user")) {
+              console.warn("Trigger failed, attempting fallback login...");
+              const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+                  email: regEmail,
+                  password: regPass
+              });
+              
+              if (!loginError && loginData.session) {
+                  // Fallback successful - The trigger failed but auth user exists.
+                  // We will proceed to manually create the user profile below via handleSession logic in App.tsx
+                  // or by explicitly calling the DB insert here.
+                  
+                  // Let's assume handleSession in App.tsx will catch the session change and create the profile.
+                  // But to be safe, we can manually upsert here too.
+                  const userId = loginData.user.id;
+                  const newUserDB = {
+                      id: userId, 
+                      name: regName,
+                      email: regEmail,
+                      phone: regPhone,
+                      type: regType,
+                      network: regNetwork,
+                      merchant_id: generatedMerchantId
+                  };
+                  await supabase.from('users').upsert([newUserDB]);
+                  
+                  closeModal();
+                  return;
+              }
+          }
+          throw signUpError;
+      }
+
       if (!authData.user) throw new Error("Registration failed");
 
       const userId = authData.user.id;
@@ -443,6 +487,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value.replace(/\D/g,'').slice(0,10))}
                   placeholder="024XXXXXXX"
+                  required
                   className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>

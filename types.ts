@@ -182,6 +182,8 @@ export interface EquipmentItem {
   owner: string;
   owner_id?: string;
   location: string;
+  location_lat?: number;
+  location_lng?: number;
   price_per_day: number;
   image_url?: string;
   available: boolean;

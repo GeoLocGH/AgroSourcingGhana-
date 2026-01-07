@@ -3,11 +3,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { EquipmentType, EquipmentItem, Message, User, Inquiry } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, PhoneIcon, MailIcon } from './common/icons';
+import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, PhoneIcon, MailIcon, GridIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { fileToDataUri } from '../utils';
 import { uploadUserFile } from '../services/storageService';
 import { supabase } from '../services/supabase';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 interface ChatContext {
     id: string;
@@ -29,6 +30,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<EquipmentType | 'All'>('All');
   const { addNotification } = useNotifications();
+  const { location } = useGeolocation();
 
   // Form State
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -38,6 +40,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       name: '',
       type: EquipmentType.Tractor,
       location: '',
+      location_lat: undefined,
+      location_lng: undefined,
       price_per_day: 0,
       description: '',
       owner: ''
@@ -298,6 +302,20 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       }
   };
 
+  const handleUseMyLocation = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (location) {
+        setCurrentItem(prev => ({
+            ...prev,
+            location_lat: location.latitude,
+            location_lng: location.longitude,
+            location: prev.location || 'Current Location' 
+        }));
+    } else {
+        alert("Could not detect location. Please ensure location services are enabled.");
+    }
+  };
+
   const handleAddItem = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user?.uid) {
@@ -317,6 +335,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               name: currentItem.name,
               type: currentItem.type,
               location: currentItem.location,
+              location_lat: currentItem.location_lat,
+              location_lng: currentItem.location_lng,
               price_per_day: currentItem.price_per_day,
               description: currentItem.description,
               image_url: imageUrl,
@@ -356,6 +376,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 name: currentItem.name,
                 type: currentItem.type,
                 location: currentItem.location,
+                location_lat: currentItem.location_lat,
+                location_lng: currentItem.location_lng,
                 price_per_day: currentItem.price_per_day,
                 description: currentItem.description,
                 image_url: imageUrl,
@@ -402,6 +424,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           name: '',
           type: EquipmentType.Tractor,
           location: '',
+          location_lat: undefined,
+          location_lng: undefined,
           price_per_day: 0,
           description: '',
           owner: ''
@@ -534,9 +558,45 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Location</label>
-                            <input required type="text" value={currentItem.location} onChange={e => setCurrentItem({...currentItem, location: e.target.value})} className="w-full border p-2 rounded" />
+                            <label className="block text-sm font-medium text-gray-700">Location Name</label>
+                            <input required type="text" value={currentItem.location} onChange={e => setCurrentItem({...currentItem, location: e.target.value})} className="w-full border p-2 rounded" placeholder="e.g. Kumasi Central" />
                         </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-gray-50 p-3 rounded border">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-gray-700 mb-2">GPS Coordinates (Optional)</label>
+                                 <button 
+                                    type="button" 
+                                    onClick={handleUseMyLocation}
+                                    className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-200 flex items-center mb-2 font-medium"
+                                >
+                                    <GridIcon className="w-3 h-3 mr-1" /> Auto-Detect Location
+                                </button>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600">Latitude</label>
+                                <input 
+                                    type="number" 
+                                    step="any"
+                                    value={currentItem.location_lat ?? ''} 
+                                    onChange={e => setCurrentItem({...currentItem, location_lat: e.target.value ? parseFloat(e.target.value) : undefined})} 
+                                    className="w-full border p-2 rounded bg-white text-sm" 
+                                    placeholder="0.000000"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600">Longitude</label>
+                                <input 
+                                    type="number" 
+                                    step="any"
+                                    value={currentItem.location_lng ?? ''} 
+                                    onChange={e => setCurrentItem({...currentItem, location_lng: e.target.value ? parseFloat(e.target.value) : undefined})} 
+                                    className="w-full border p-2 rounded bg-white text-sm" 
+                                    placeholder="0.000000"
+                                />
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Description</label>
                             <textarea value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} className="w-full border p-2 rounded" rows={3}></textarea>
