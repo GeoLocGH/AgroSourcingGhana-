@@ -55,14 +55,24 @@ export const uploadUserFile = async (
     };
 
     if (userId && context !== 'admin-logo') {
-        const { data, error: dbError } = await supabase
-            .from('user_files')
-            .insert([fileData])
-            .select()
-            .single();
+        // Try to insert into DB, but do not fail the whole upload if RLS blocks it
+        try {
+            const { data, error: dbError } = await supabase
+                .from('user_files')
+                .insert([fileData])
+                .select()
+                .single();
 
-        if (dbError) throw dbError;
-        return data as UserFile;
+            if (dbError) {
+                console.warn("File uploaded but DB tracking failed (RLS or Schema):", dbError.message);
+                // Return constructed object if DB fails
+                return { id: `temp-${timestamp}`, ...fileData } as UserFile;
+            }
+            return data as UserFile;
+        } catch (dbErr) {
+             console.warn("File uploaded but DB insert threw exception:", dbErr);
+             return { id: `temp-${timestamp}`, ...fileData } as UserFile;
+        }
     }
 
     return { id: 'admin-upload', ...fileData } as UserFile;
@@ -76,7 +86,7 @@ export const uploadUserFile = async (
 export const deleteUserFile = async (userId: string, fileId: string, storagePath: string): Promise<void> => {
   try {
     await supabase.storage.from('user_uploads').remove([storagePath]);
-    if (userId && fileId) {
+    if (userId && fileId && !fileId.startsWith('temp-')) {
         const { error: dbError } = await supabase
             .from('user_files')
             .delete()

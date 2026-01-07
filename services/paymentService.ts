@@ -59,6 +59,20 @@ export const getTransactionHistory = async (userId: string) => {
 };
 
 /**
+ * Fetches ALL transactions for Admin Analytics.
+ */
+export const getAllTransactions = async () => {
+    const { data, error } = await supabase
+        .from('transactions')
+        .select('created_at, amount, provider, status, currency')
+        .order('created_at', { ascending: false })
+        .limit(500); // Limit for context window safety
+    
+    if (error) throw error;
+    return data;
+};
+
+/**
  * Calculates current wallet balance from transaction history.
  * Secure approach: Calculate on server or via aggregation query.
  * Here we aggregate client-side from the transactions table.

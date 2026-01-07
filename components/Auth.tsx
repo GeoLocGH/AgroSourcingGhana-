@@ -127,26 +127,30 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               try {
                   const fileData = await uploadUserFile(userId, regPhoto, 'profile', '', 'Profile Photo');
                   profilePhotoUrl = fileData.file_url;
+                  
+                  // Save to metadata as fallback since DB schema might lack photo_url
+                  await supabase.auth.updateUser({ data: { avatar_url: profilePhotoUrl } });
+
               } catch(e) {
                   console.warn("Photo upload failed during reg", e);
               }
           }
 
-          const newUser: User = {
+          const newUserDB = {
               uid: userId,
               name: regName,
               email: regEmail,
               phone: regPhone,
-              type: regType,
-              photo_url: profilePhotoUrl
+              type: regType
+              // EXCLUDE photo_url to prevent Schema Error (PGRST204)
           };
 
-          const { error: dbError } = await supabase.from('users').upsert([newUser]);
+          const { error: dbError } = await supabase.from('users').upsert([newUserDB]);
           if (dbError) {
               console.error("DB Insert Error", JSON.stringify(dbError));
           }
           
-          onLogin(newUser);
+          onLogin({ ...newUserDB, photo_url: profilePhotoUrl } as User);
           closeModal();
       } else {
           // 3. Confirmation Required

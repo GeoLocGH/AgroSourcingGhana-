@@ -15,7 +15,7 @@ import Orders from './components/Orders';
 import Profile from './components/Profile';
 import { NotificationProvider } from './contexts/NotificationContext';
 import NotificationArea from './components/NotificationArea';
-import { HomeIcon, CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, TractorIcon, WalletIcon, ClipboardListIcon, ShieldCheckIcon, UploadIcon, CheckCircleIcon, XIcon, AgroLogoIcon } from './components/common/icons';
+import { HomeIcon, CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, TractorIcon, WalletIcon, ShieldCheckIcon, UploadIcon, CheckCircleIcon, XIcon, AgroLogoIcon } from './components/common/icons';
 import type { View, User } from './types';
 import { supabase } from './services/supabase';
 import { uploadUserFile } from './services/storageService';
@@ -112,6 +112,11 @@ const App: React.FC = () => {
 
   const handleSession = async (session: any) => {
       if (session?.user) {
+          const meta = session.user.user_metadata || {};
+          const photoFromAuth = meta.avatar_url || '';
+          // Ensure merchant_id is read from metadata as column might be missing
+          const merchantIdFromAuth = meta.merchant_id || '';
+
           // 1. Try to get existing profile
           const { data: userData, error } = await supabase
               .from('users')
@@ -120,30 +125,40 @@ const App: React.FC = () => {
               .single();
 
           if (userData) {
-              setUser(userData as User);
+              // Merge DB data with Auth Metadata (prefer Auth for photo/merchant if DB is empty/missing column)
+              setUser({
+                  ...userData,
+                  photo_url: userData.photo_url || photoFromAuth,
+                  merchant_id: userData.merchant_id || merchantIdFromAuth
+              } as User);
           } else {
               // 2. Profile missing (First login after email confirm?), create it from metadata
-              const meta = session.user.user_metadata || {};
               const type = meta.user_type || (session.user.email?.toLowerCase().includes('admin') ? 'admin' : 'buyer');
               
-              const newUser: User = {
+              // Prepare DB Object (Exclude photo_url AND merchant_id to prevent Schema Error)
+              const newUserDB = {
                   uid: session.user.id,
                   name: meta.full_name || 'User',
                   email: session.user.email || '',
                   phone: meta.phone || '',
-                  type: type,
-                  photo_url: meta.avatar_url || ''
+                  type: type
               };
               
-              // Use upsert to prevent duplicate key errors if the row was created in parallel
-              const { error: insertError } = await supabase.from('users').upsert([newUser]);
+              // Use upsert to prevent duplicate key errors
+              const { error: insertError } = await supabase.from('users').upsert([newUserDB]);
               
+              const fullUser: User = {
+                  ...newUserDB,
+                  photo_url: photoFromAuth,
+                  merchant_id: merchantIdFromAuth
+              };
+
               if (!insertError) {
-                  setUser(newUser);
+                  setUser(fullUser);
               } else {
                   console.error("Failed to create user profile:", JSON.stringify(insertError));
                   // Fallback to local state so app still works
-                  setUser(newUser);
+                  setUser(fullUser);
               }
           }
       } else {
@@ -195,7 +210,6 @@ const App: React.FC = () => {
           'App Header Logo Upload'
         );
         
-        // Fix: Changed download_url to file_url as per UserFile type definition
         const newLogoUrl = uploadedFile.file_url;
         
         // Save to 'settings' table
@@ -228,8 +242,6 @@ const App: React.FC = () => {
       setAuthModalState('LOGIN');
   };
 
-  // Wrapper for setActiveView to gate restricted views like Forum (if strictly needed)
-  // The prompt asks to trigger login on clicking "Forum". Assuming this means the Nav Item.
   const handleSetActiveView = (view: View) => {
       if (view === 'FORUM' && !user) {
           handleRequireLogin();

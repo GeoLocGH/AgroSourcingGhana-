@@ -1,438 +1,210 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { Crop, GeoLocation, WeatherForecast, PriceData, AdvisoryStage, ServiceResponse, GroundingSource, PaymentExtractionResult, ReconciliationResult } from '../types';
+import type { GeoLocation, WeatherForecast, PriceData, AdvisoryStage, ServiceResponse, PaymentExtractionResult } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Fix: Use gemini-3-pro-preview for complex reasoning tasks and gemini-3-flash-preview for general text/search tasks as per guidelines
-const COMPLEX_MODEL = 'gemini-3-pro-preview';
-const FAST_MODEL = 'gemini-3-flash-preview';
-
-// Helper to extract sources from grounding metadata
-const extractSources = (response: any): GroundingSource[] => {
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    return chunks
-        .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-        .filter((s: any) => s !== null) as GroundingSource[];
-};
-
-const DIAGNOSIS_PROMPT = `You are an expert agronomist specializing in common crops and pests in Ghana. Analyze the provided image of a plant leaf. Identify the likely disease or pest infestation. Provide a concise report with the following sections in Markdown format: 
-### Diagnosis
-**[Name of disease/pest]**
-### Symptoms
-- [Brief description of visual symptoms]
-- [Another symptom]
-### Recommended Treatment
-**Organic Options:**
-- [Organic treatment 1]
-- [Organic treatment 2]
-**Chemical Options:**
-- [Chemical treatment 1]
-- [Chemical treatment 2]
-### Prevention Tips
-- [Preventive measure 1]
-- [Preventive measure 2]
-
-Format the response in simple, actionable language suitable for smallholder farmers in Ghana. If the image is unclear or not a plant, state that and ask for a better picture.`;
-
-// Simple in-memory cache
-const cache: Record<string, { timestamp: number, data: any }> = {};
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes (reduced for real-time nature)
-
-// Helper for retry logic with exponential backoff
-async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  retries = 3,
-  delay = 2000,
-  factor = 2
-): Promise<T> {
+async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
   try {
     return await fn();
-  } catch (error: any) {
-    // Check for various forms of 429/Resource Exhausted errors
-    const isRateLimit = 
-        error?.status === 429 || 
-        error?.code === 429 || 
-        error?.message?.includes('429') || 
-        error?.message?.includes('Resource has been exhausted') ||
-        error?.message?.includes('quota');
-
-    if (retries > 0 && isRateLimit) {
-      console.warn(`Rate limit hit. Retrying in ${delay}ms... (${retries} retries left)`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return retryWithBackoff(fn, retries - 1, delay * factor, factor);
-    }
-    throw error;
+  } catch (error) {
+    if (retries === 0) throw error;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return retryWithBackoff(fn, retries - 1, delay * 2);
   }
 }
 
-export const diagnosePlant = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const callApi = async () => {
-    const imagePart = {
-      inlineData: {
-        data: imageBase64,
-        mimeType: mimeType,
-      },
-    };
-
-    const textPart = {
-      text: DIAGNOSIS_PROMPT,
-    };
-
-    // Fix: Use COMPLEX_MODEL (gemini-3-pro-preview) for image-based reasoning
-    const response = await ai.models.generateContent({
-      model: COMPLEX_MODEL,
-      contents: { parts: [imagePart, textPart] },
-    });
-
-    if (response.text) {
-      return response.text;
-    } else {
-      return "No diagnosis could be generated. The model did not provide a response. Please try again with a clearer image.";
-    }
-  };
-
-  try {
-    return await retryWithBackoff(callApi);
-  } catch (error) {
-    console.error("Error calling Gemini API:", error);
-    if (error instanceof Error && (error.message.includes('429') || error.message.includes('exhausted'))) {
-        return "The service is currently busy due to high demand (Quota Exceeded). Please wait a minute and try again.";
-    }
-    return `An error occurred while diagnosing: ${error instanceof Error ? error.message : String(error)}. Please check your connection and try again.`;
-  }
-};
-
-export const getAdvisory = async (crop: Crop, plantingDate: string, location: GeoLocation): Promise<ServiceResponse<AdvisoryStage[]>> => {
-  const ADVISORY_PROMPT = `
-  Act as an expert agronomist. 
-  First, search for the current agricultural conditions, recent pest outbreaks (like Fall Armyworm or others), and weather patterns specifically for "${crop}" in Ghana near Latitude ${location.latitude}, Longitude ${location.longitude} for the current date (${new Date().toDateString()}).
-
-  Based on this real-time context and the planting date of ${plantingDate}, generate a stage-by-stage crop advisory plan.
-  
-  Provide a detailed, stage-by-stage guide. The advice should be practical, actionable, and tailored to the CURRENT real-world conditions in Ghana found via search.
-  For the stage corresponding to the current date, include specific warnings or actions based on your search findings (e.g., "Due to recent reports of X in the region...").
-  
-  Output the result ONLY as a raw valid JSON array of objects. Do NOT use markdown code blocks.
-  
-  JSON Schema:
-  [
-    {
-      "stage": "string (Name of the growth stage)",
-      "timeline": "string (e.g., 'Week 1-2' or 'Current Stage')",
-      "instructions": ["string", "string"] (List of specific actions)
-    }
-  ]
-  `;
-
-  const callApi = async () => {
-     // Fix: Use FAST_MODEL (gemini-3-flash-preview) for general search-grounded text tasks
-     const response = await ai.models.generateContent({
-      model: FAST_MODEL,
-      contents: ADVISORY_PROMPT,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
-     });
-     
-     if (response.text) {
-        let jsonStr = response.text.trim();
-        if (jsonStr.startsWith('```json')) {
-            jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
-        } else if (jsonStr.startsWith('```')) {
-            jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
-        }
-        
-        return {
-            data: JSON.parse(jsonStr) as AdvisoryStage[],
-            sources: extractSources(response)
-        };
-     } else {
-        throw new Error("The model did not return any text.");
-     }
-  };
-
-  try {
-    return await retryWithBackoff(callApi);
-  } catch (error) {
-    console.error("Error generating advisory:", error);
-    // Fallback static data if search fails
-    return {
-        data: [{ 
-            stage: "General Advisory (Offline)", 
-            timeline: "N/A", 
-            instructions: ["Could not fetch real-time data. Please check connection.", "Ensure regular watering.", "Scout for pests daily."] 
-        }],
-        sources: []
-    };
-  }
-};
+function extractSources(response: any) {
+    return response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
+        title: chunk.web?.title || 'Source',
+        uri: chunk.web?.uri || ''
+    })).filter((s: any) => s.uri) || [];
+}
 
 export const checkWeatherAlerts = async (location: GeoLocation): Promise<string> => {
-  const cacheKey = `alerts-${location.latitude.toFixed(2)}-${location.longitude.toFixed(2)}`;
-  const cached = cache[cacheKey];
-  if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
-      return cached.data;
-  }
-
-  const prompt = `Search for current severe weather warnings, floods, drought alerts, or extreme heat advisories specifically for agricultural areas in Ghana near latitude ${location.latitude}, longitude ${location.longitude}. Summarize any active alerts in one short sentence. If there are no active severe alerts, simply say "No active severe weather alerts at this time."`;
-
-  const callApi = async () => {
-    // Fix: Use FAST_MODEL (gemini-3-flash-preview)
-    const response = await ai.models.generateContent({
-      model: FAST_MODEL,
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
+    const prompt = `Check for active severe weather alerts for location: ${location.latitude}, ${location.longitude}. 
+    If none, say "No active severe weather alerts."`;
+    
+    return retryWithBackoff(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
+        });
+        return response.text || "No active severe weather alerts.";
     });
-    const result = response.text || "No active severe weather alerts at this time.";
-    cache[cacheKey] = { timestamp: Date.now(), data: result };
-    return result;
-  };
-
-  try {
-    return await retryWithBackoff(callApi);
-  } catch (error) {
-    console.error("Error checking weather alerts:", error);
-    return "Unable to fetch live weather alerts. Please check local radio.";
-  }
 };
 
 export const getLocalWeather = async (location: GeoLocation): Promise<ServiceResponse<WeatherForecast[]>> => {
-    const cacheKey = `weather-${location.latitude.toFixed(2)}-${location.longitude.toFixed(2)}`;
-    const cached = cache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
-        return cached.data;
-    }
-
-    const prompt = `
-      First, identify the Region and weather sector (e.g., Southern, Middle, Northern) in Ghana for latitude ${location.latitude}, longitude ${location.longitude}.
-      Then, find the specific regional weather forecast and Agrometeorological Advisory for this area for Today, Tomorrow, and the Day After.
-      
-      Look for data from reliable sources like regional reports found on sites like 'ghaap.com/weather-forecast/'.
-      
-      Output the result ONLY as a raw valid JSON array of 3 objects. Do NOT use markdown code blocks (like \`\`\`json).
-      
-      Each object must follow this exact structure:
-      {
-        "day": "string (e.g., 'Today', 'Tomorrow')",
-        "condition": "string (Must be exactly one of: 'Sunny', 'Cloudy', 'Rainy', 'Stormy')",
-        "temp": number (Temperature in Celsius),
-        "wind": number (Wind speed in km/h),
-        "humidity": "string (e.g., '61%')",
-        "visibility": "string (e.g., '10 km')",
-        "pressure": "string (e.g., '1021 hPa')",
-        "region": "string (The identified region or sector name)",
-        "agromet_note": "string (Brief Agrometeorological Advisory for farmers, e.g., 'Favorable for drying grains', 'Avoid spraying due to high winds', 'Expect heavy rains, clear drains')"
-      }
-    `;
-
-    const callApi = async () => {
-        // Fix: Use FAST_MODEL (gemini-3-flash-preview)
+    const prompt = `Get the 3-day weather forecast for coordinates ${location.latitude}, ${location.longitude}. Return JSON.`;
+    
+    return retryWithBackoff(async () => {
         const response = await ai.models.generateContent({
-            model: FAST_MODEL,
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            day: { type: Type.STRING },
+                            condition: { type: Type.STRING, enum: ['Sunny', 'Cloudy', 'Rainy', 'Stormy'] },
+                            temp: { type: Type.NUMBER },
+                            wind: { type: Type.NUMBER },
+                            humidity: { type: Type.STRING },
+                            visibility: { type: Type.STRING },
+                            pressure: { type: Type.STRING },
+                            region: { type: Type.STRING },
+                            agromet_note: { type: Type.STRING }
+                        },
+                        required: ['day', 'condition', 'temp', 'wind', 'humidity', 'visibility', 'pressure', 'region']
+                    }
+                }
             }
         });
         
-        if (response.text) {
-            let jsonStr = response.text.trim();
-            if (jsonStr.startsWith('```json')) {
-                jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
-            } else if (jsonStr.startsWith('```')) {
-                jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
-            }
-            
-            const data = JSON.parse(jsonStr) as WeatherForecast[];
-            const result = { data, sources: extractSources(response) };
-            
-            cache[cacheKey] = { timestamp: Date.now(), data: result };
-            return result;
-        }
-        throw new Error("No weather data returned.");
-    };
-
-    try {
-        return await retryWithBackoff(callApi);
-    } catch (error) {
-        console.error("Error fetching weather:", error);
-        // Fallback
-        return {
-            data: [
-                { day: 'Today', condition: 'Sunny', temp: 30, wind: 10, humidity: '60%', visibility: '10 km', pressure: '1012 hPa', region: 'Accra (Fallback)', agromet_note: 'General conditions are fair.' },
-                { day: 'Tomorrow', condition: 'Cloudy', temp: 29, wind: 12, humidity: '65%', visibility: '9 km', pressure: '1010 hPa', region: 'Accra (Fallback)', agromet_note: 'Good day for field work.' },
-                { day: 'In 2 Days', condition: 'Rainy', temp: 28, wind: 15, humidity: '80%', visibility: '8 km', pressure: '1008 hPa', region: 'Accra (Fallback)', agromet_note: 'Prepare for rains.' },
-            ],
-            sources: []
-        };
-    }
+        const data = JSON.parse(response.text || "[]");
+        const sources = extractSources(response);
+        return { data, sources };
+    });
 };
 
 export const getMarketPrices = async (crop: string): Promise<ServiceResponse<PriceData[]>> => {
-    const cacheKey = `market_prices_${crop}`;
-    if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_DURATION) {
-         return cache[cacheKey].data;
-    }
+    const prompt = `Get current market prices for ${crop} in major markets in Ghana. Return JSON.`;
 
-    const prompt = `
-      Act as an agricultural market expert. Search for the most recent wholesale market prices for "${crop}" in Ghana and key sub-Saharan markets.
-      Focus on major trading centers like Techiman, Agbogbloshie, Kumasi Central, Tamale, and others relevant to the crop.
-      
-      Look for data from reliable sources like Esoko, Ministry of Food and Agriculture, or recent news reports.
-      
-      Output strictly a raw JSON array of objects (no markdown, no backticks).
-      Schema:
-      [
-        {
-          "market": "string (Name of the market, e.g. 'Techiman Market')",
-          "price": number (Price in GHS. If given in other currency, convert approx to GHS. If a range is found, use the average),
-          "unit": "string (e.g., '100kg bag', 'Tonne', 'Box', 'Crate')",
-          "trend": "string ('up', 'down', or 'stable' based on recent news or comparison)",
-          "date": "string (approximate date of data or 'Current')"
-        }
-      ]
-      
-      Provide at least 4 different markets if possible.
-    `;
+    return retryWithBackoff(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            market: { type: Type.STRING },
+                            price: { type: Type.NUMBER },
+                            unit: { type: Type.STRING },
+                            date: { type: Type.STRING },
+                            trend: { type: Type.STRING, enum: ['up', 'down', 'stable'] }
+                        },
+                        required: ['market', 'price', 'unit', 'trend']
+                    }
+                }
+            }
+        });
 
-    const callApi = async () => {
-         // Fix: Use FAST_MODEL (gemini-3-flash-preview)
-         const response = await ai.models.generateContent({
-             model: FAST_MODEL,
-             contents: prompt,
-             config: { tools: [{ googleSearch: {} }] }
-         });
+        const data = JSON.parse(response.text || "[]");
+        const sources = extractSources(response);
+        return { data, sources };
+    });
+};
 
-         const text = response.text;
-         if (!text) throw new Error("No data returned from AI");
-         
-         let jsonStr = text.trim();
-         if (jsonStr.startsWith('```json')) {
-            jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
-         } else if (jsonStr.startsWith('```')) {
-            jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
-         }
-         
-         return {
-             data: JSON.parse(jsonStr),
-             sources: extractSources(response)
-         };
-    };
+export const diagnosePlant = async (base64Image: string, mimeType: string): Promise<string> => {
+    return retryWithBackoff(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [
+                    { inlineData: { mimeType, data: base64Image } },
+                    { text: "Diagnose the disease or pest affecting this plant. Provide treatment recommendations in Markdown." }
+                ]
+            }
+        });
+        return response.text || "Diagnosis failed.";
+    });
+};
 
-    try {
-        const result = await retryWithBackoff(callApi);
-        cache[cacheKey] = { timestamp: Date.now(), data: result };
-        return result;
-    } catch (e) {
-        console.error("Error fetching market prices:", e);
-        return { data: [], sources: [] };
-    }
+export const getAdvisory = async (crop: string, plantingDate: string, location: GeoLocation): Promise<ServiceResponse<AdvisoryStage[]>> => {
+    const prompt = `Create a crop advisory for ${crop} planted on ${plantingDate} at location ${location.latitude}, ${location.longitude}. Return JSON.`;
+
+    return retryWithBackoff(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            stage: { type: Type.STRING },
+                            timeline: { type: Type.STRING },
+                            instructions: { type: Type.ARRAY, items: { type: Type.STRING } }
+                        },
+                        required: ['stage', 'timeline', 'instructions']
+                    }
+                }
+            }
+        });
+
+        const data = JSON.parse(response.text || "[]");
+        const sources = extractSources(response);
+        return { data, sources };
+    });
 };
 
 export const parsePaymentSMS = async (smsText: string): Promise<PaymentExtractionResult> => {
-    // This function implements the Payment Automation Expert logic
-    const prompt = `
-    You are the Payment Automation Expert for Agro Sourcing Ghana. Your task is to analyze incoming payment webhook data or SMS notification strings from MTN MoMo and Vodafone Cash.
+    const prompt = `Extract payment details from this SMS: "${smsText}". Return JSON.`;
 
-    Extract the Transaction ID, Amount, and Sender Phone Number.
-
-    Format the data into a JSON object that matches the Supabase transactions table schema.
-
-    If a transaction looks suspicious (e.g., amount mismatch or unclear text), flag it for manual review.
-
-    Input SMS: "${smsText}"
-
-    Output Format (JSON only, no markdown):
-    { 
-        "status": "completed" | "failed" | "flagged", 
-        "amount": number (e.g. 500.00), 
-        "provider_reference": "string (Transaction ID)", 
-        "phone_number": "string (10-12 digits)",
-        "raw_message": "string"
-    }
-    `;
-
-    const callApi = async () => {
-        // FAST_MODEL is sufficient for text extraction
+    return retryWithBackoff(async () => {
         const response = await ai.models.generateContent({
-            model: FAST_MODEL,
-            contents: prompt
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        status: { type: Type.STRING, enum: ['pending', 'completed', 'failed', 'flagged'] },
+                        amount: { type: Type.NUMBER },
+                        provider_reference: { type: Type.STRING },
+                        phone_number: { type: Type.STRING }
+                    },
+                    required: ['status', 'amount', 'provider_reference', 'phone_number']
+                }
+            }
         });
 
-        const text = response.text;
-        if (!text) throw new Error("No response from AI");
-
-        let jsonStr = text.trim();
-        if (jsonStr.startsWith('```json')) {
-            jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
-        } else if (jsonStr.startsWith('```')) {
-            jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
-        }
-
-        return JSON.parse(jsonStr) as PaymentExtractionResult;
-    };
-
-    try {
-        return await retryWithBackoff(callApi);
-    } catch (e) {
-        console.error("Error parsing payment SMS:", e);
-        return {
-            status: 'flagged',
-            amount: 0,
-            provider_reference: 'UNKNOWN',
-            phone_number: 'UNKNOWN',
-            raw_message: smsText
-        };
-    }
+        return JSON.parse(response.text || "{}") as PaymentExtractionResult;
+    });
 };
 
-export const generateReconciliationQuery = async (smsText: string): Promise<ReconciliationResult> => {
-    const prompt = `You are an Agro Sourcing Ghana Support AI. I will provide you with a text snippet from a Mobile Money SMS. Extract the:
-    1. Transaction ID
-    2. Amount (in GHS)
-    3. Date and Time
-    4. Sending Number
+export const generateAnalyticsReport = async (inputData: string): Promise<string> => {
+    const prompt = `
+    You are the Executive Strategy AI for Agro Sourcing Ghana. The CEO has provided transaction data below.
+    
+    Data:
+    ${inputData}
 
-    Then, generate a SQL UPDATE statement to change the status of the record in the public.transactions table where provider_reference matches the ID you found. Set the status to 'completed'.
+    Task:
+    1. **Data Parsing**: If the data is CSV, parse it intelligently.
+    2. **Day of Week Analysis**: For any dates provided, determine the Day of the Week. Identify which day has the highest volume.
+    3. **Metrics Calculation**:
+       - Calculate Week-Over-Week (WoW) growth if applicable.
+       - Calculate **Average Transaction Value (ATV)** = Total Revenue / Total Transactions.
+    4. **Provider Comparison**: Compare Mobile Money Providers (MTN vs Telecel/Vodafone/AirtelTigo).
+    5. **Executive Summary**: Write a concise 3-sentence executive summary suitable for sending via WhatsApp.
 
-    Input SMS: "${smsText}"
-
-    Output strictly valid JSON (no markdown) with this structure:
-    {
-        "transaction_id": "string",
-        "amount": number,
-        "date": "string",
-        "sender": "string",
-        "sql_query": "string"
-    }
+    Formatting:
+    - Use Markdown for the main analysis.
+    - Use bolding for key figures.
+    - Put the 'WhatsApp Summary' in a distinct block at the end.
     `;
 
-    const callApi = async () => {
+    return retryWithBackoff(async () => {
         const response = await ai.models.generateContent({
-            model: FAST_MODEL,
+            model: 'gemini-3-pro-preview',
             contents: prompt
         });
-
-        const text = response.text;
-        if (!text) throw new Error("No response from AI");
-
-        let jsonStr = text.trim();
-        if (jsonStr.startsWith('```json')) {
-            jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '');
-        } else if (jsonStr.startsWith('```')) {
-            jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '');
-        }
-
-        return JSON.parse(jsonStr) as ReconciliationResult;
-    };
-
-    try {
-        return await retryWithBackoff(callApi);
-    } catch (e) {
-        console.error("Error generating reconciliation query:", e);
-        throw e;
-    }
+        return response.text || "Could not generate report.";
+    });
 };

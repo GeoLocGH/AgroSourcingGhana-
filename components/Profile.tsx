@@ -151,7 +151,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       
       setLoading(true);
       try {
-          let finalPhotoURL = formData.photo_url || '';
+          let finalPhotoURL = user.photo_url || '';
 
           if (newPhoto) {
               const fileData = await uploadUserFile(user.uid, newPhoto, 'profile', '', 'Profile Photo Updated');
@@ -161,18 +161,23 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
           const updates = {
               name: formData.name,
               phone: formData.phone,
-              photo_url: finalPhotoURL,
-              merchant_id: user.type === 'seller' ? formData.merchant_id : undefined
+              // photo_url and merchant_id excluded from DB update to avoid Schema Error
           };
 
           const { error } = await supabase.from('users').update(updates).eq('uid', user.uid);
           if (error) throw error;
           
+          // Store photo URL and merchant_id in Auth Metadata instead
           await supabase.auth.updateUser({
-              data: { full_name: formData.name, avatar_url: finalPhotoURL }
+              data: { 
+                  full_name: formData.name, 
+                  avatar_url: finalPhotoURL,
+                  phone: formData.phone,
+                  merchant_id: user.type === 'seller' ? formData.merchant_id : undefined
+              }
           });
           
-          setUser({ ...user, ...updates } as User);
+          setUser({ ...user, ...updates, merchant_id: formData.merchant_id, photo_url: finalPhotoURL } as User);
           setIsEditing(false);
           addNotification({ type: 'auth', title: 'Updated', message: 'Profile saved.', view: 'PROFILE' });
       } catch (error: any) {
@@ -242,6 +247,9 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                        <form onSubmit={handleUpdateProfile} className="w-full space-y-3 mt-2">
                            <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Full Name" />
                            <input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Phone" />
+                           {user.type === 'seller' && (
+                               <input value={formData.merchant_id} onChange={e => setFormData({...formData, merchant_id: e.target.value})} className="w-full border p-2 rounded text-sm text-gray-900" placeholder="Merchant ID" />
+                           )}
                            <div className="flex gap-2">
                                <Button type="submit" isLoading={loading} className="flex-1 text-sm">Save</Button>
                                <Button onClick={() => setIsEditing(false)} className="flex-1 bg-gray-200 text-gray-800 text-sm">Cancel</Button>
@@ -266,6 +274,9 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-900">
                               <div><label className="text-xs text-gray-500 uppercase">Email</label><p className="font-medium">{user.email}</p></div>
                               <div><label className="text-xs text-gray-500 uppercase">Phone</label><p className="font-medium">{user.phone || 'Not set'}</p></div>
+                              {user.merchant_id && (
+                                  <div><label className="text-xs text-gray-500 uppercase">Merchant ID</label><p className="font-medium">{user.merchant_id}</p></div>
+                              )}
                               <div className="md:col-span-2"><label className="text-xs text-gray-500 uppercase">User ID</label><p className="font-mono text-xs bg-gray-100 p-2 rounded">{user.uid}</p></div>
                           </div>
                       )}
