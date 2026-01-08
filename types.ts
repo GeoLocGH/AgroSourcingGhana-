@@ -103,7 +103,7 @@ export interface MarketplaceItem {
   title: string;
   category: 'Seeds' | 'Fertilizers' | 'Tools' | 'Produce' | 'All';
   seller_name: string;
-  owner_id: string;
+  user_id: string; // Updated from owner_id to user_id
   seller_email?: string;
   seller_phone?: string;
   price: number;
@@ -113,7 +113,7 @@ export interface MarketplaceItem {
   location_lng?: number;
   location_name?: string;
   image_urls?: string[];
-  created_at?: string; // Standardized to snake_case
+  created_at?: string; // Reverted to created_at based on latest DB error hint
   likes?: number;
   userHasLiked?: boolean;
   merchant_id?: string | null;
@@ -180,7 +180,7 @@ export interface EquipmentItem {
   name: string;
   type: EquipmentType;
   owner: string;
-  user_id: string; // Explicitly using user_id instead of owner_id
+  user_id: string; // Explicitly using user_id
   location: string;
   location_lat?: number;
   location_lng?: number;

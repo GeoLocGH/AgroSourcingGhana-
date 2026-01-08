@@ -94,8 +94,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       if (!user || !user.uid) return;
       setLoadingListings(true);
       try {
-          // Updated to use owner_id
-          const { data: marketData } = await supabase.from('marketplace').select('*').eq('owner_id', user.uid);
+          // Standardized to use user_id
+          const { data: marketData } = await supabase.from('marketplace').select('*').eq('user_id', user.uid);
           setMyListings((marketData as MarketplaceItem[]) || []);
 
           const { data: equipData } = await supabase.from('equipment').select('*').eq('user_id', user.uid);

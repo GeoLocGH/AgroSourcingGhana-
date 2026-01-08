@@ -73,10 +73,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'created_at' | 'likes' | 'userHasLiked' | 'owner_id' | 'seller_name'>>({ 
+    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'created_at' | 'likes' | 'userHasLiked' | 'user_id' | 'seller_name'>>({ 
         title: '', 
         category: 'Seeds', 
-        price: 0,
+        price: 0, 
         usage_instructions: '',
         storage_recommendations: '',
         location_lat: undefined,
@@ -122,7 +122,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         setLoadingItems(true);
 
         const fetchItems = async () => {
-            // Fetch Items - ordered by created_at (snake_case)
+            // Fetch Items - ordered by created_at (snake_case per latest DB error)
             const { data: itemsData, error: itemsError } = await supabase
                 .from('marketplace')
                 .select('*')
@@ -463,14 +463,13 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                     : ['https://placehold.co/600x400/eeeeee/cccccc?text=No+Image'];
             }
 
-            // Dual input logic check:
-            // newItem.location_lat/lng holds the value from either "Auto-Detect" OR "Manual Entry".
-            // If the user manually types, it overrides; if they click auto-detect, it fills.
             const finalLat = newItem.location_lat;
             const finalLng = newItem.location_lng;
-            
-            // Fallback for Location Name to "Accra (Agbogbloshie)" if missing but coords exist
             const finalLocationName = newItem.location_name || (finalLat && finalLng ? "Accra (Agbogbloshie)" : "");
+
+            // Get user explicitly to ensure we have the correct ID
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            const userId = authUser?.id || user.uid;
 
             const newItemData = {
                 title: newItem.title,
@@ -482,12 +481,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 location_lng: finalLng,
                 location_name: finalLocationName,
                 image_urls: imageUrls,
-                owner_id: user.uid,
+                user_id: userId, // Correctly using user_id instead of owner_id
                 seller_name: user.name || 'Anonymous',
                 seller_email: user.email,
                 seller_phone: user.phone || '',
-                merchant_id: user.merchant_id || null, // Auto-included if user has it
-                created_at: new Date().toISOString() // Standardized to created_at
+                merchant_id: user.merchant_id || null, 
+                created_at: new Date().toISOString() // Using created_at (snake_case)
             };
 
             const { error: dbError } = await supabase.from('marketplace').insert([newItemData]);
@@ -523,6 +522,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         if(!itemToEdit) return;
 
         try {
+            // Destructure createdAt/created_at to avoid sending readonly fields
+            // Also checking for 'created_at' (snake case) which is the correct column now
             const { id, likes, userHasLiked, created_at, ...dataToUpdate } = itemToEdit;
             
             const { error } = await supabase
@@ -575,18 +576,17 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             return;
         }
 
-        // Check if seller has disabled messaging
         if (item.messaging_enabled === false) {
              addNotification({ type: 'market', title: 'Seller Unavailable', message: 'This seller has not enabled messaging yet.', view: 'MARKETPLACE' });
              return;
         }
 
-        if (!item.owner_id) {
+        if (!item.user_id) {
              addNotification({ type: 'market', title: 'Seller Unavailable', message: 'This seller has not enabled messaging yet.', view: 'MARKETPLACE' });
              return;
         }
 
-        if (item.owner_id === user.uid) {
+        if (item.user_id === user.uid) {
              addNotification({ type: 'market', title: 'Cannot Chat', message: 'You cannot message yourself.', view: 'MARKETPLACE' });
              return;
         }
@@ -597,8 +597,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             id: chatId,
             name: item.seller_name,
             subject: item.title,
-            participants: [user.uid, item.owner_id],
-            receiverId: item.owner_id // Store explicitly for robustness
+            participants: [user.uid, item.user_id],
+            receiverId: item.user_id 
         });
         setIsChatVisible(true);
     };
@@ -609,7 +609,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             return;
         }
 
-        if (item.owner_id === user.uid) {
+        if (item.user_id === user.uid) {
             addNotification({ type: 'market', title: 'Error', message: 'You cannot buy your own item.', view: 'MARKETPLACE' });
             return;
         }
@@ -619,15 +619,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             return;
         }
 
-        // Simulate secure routing logic
         const paymentData = {
             amount: item.price,
             recipient: item.merchant_id,
             item: item.title
         };
 
-        // In a real app, this would route to DigitalWallet with paymentData pre-filled
-        // For simulation:
         addNotification({ 
             type: 'wallet', 
             title: 'Payment Initiated', 
@@ -635,10 +632,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             view: 'WALLET' 
         });
     };
-
-    const handleOpenOrderChat = (order: SellerOrder) => {
-        addNotification({ type: 'market', title: 'Feature Pending', message: 'Messaging from order history coming soon.', view: 'MARKETPLACE' });
-    }
 
     const handleSellerClick = async (e: React.MouseEvent, item: MarketplaceItem) => {
         e.stopPropagation();
@@ -676,7 +669,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
         setIsSending(true);
 
-        // 1. Get the current logged-in user securely
         const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !currentUser) {
@@ -685,15 +677,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             return;
         }
 
-        // 2. Identify Receiver
         const receiverId = chatContext.receiverId || chatContext.participants?.find(p => p !== currentUser.id);
         
-        // 3. Log data to console for debugging as requested
-        console.log("Sender:", currentUser.id);
-        console.log("Receiver:", receiverId);
-        console.log("Item:", chatContext.id);
-
-        // --- Strict Validation Checklist ---
         if (!chatContext.id) {
             console.error("Missing Item ID (Chat Context ID)");
             setError("Error: Item ID is missing.");
@@ -713,7 +698,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 .insert([{
                     sender_id: currentUser.id,
                     receiver_id: receiverId,
-                    item_id: String(chatContext.id), // Ensure string format matching DB text type
+                    item_id: String(chatContext.id),
                     message_text: currentMessage.trim()
                 }]);
 
@@ -824,10 +809,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
     const canManageItem = (item: MarketplaceItem) => {
         if (!user) return false;
-        return user.type === 'admin' || item.owner_id === user.uid || (item.seller_name === user.name && !item.owner_id);
+        return user.type === 'admin' || item.user_id === user.uid || (item.seller_name === user.name && !item.user_id);
     }
 
-    const myKeyListings = marketplaceItems.filter(item => item.owner_id === user?.uid || item.seller_name === (user?.name || 'Agro Ghana Ltd.'));
+    const myKeyListings = marketplaceItems.filter(item => item.user_id === user?.uid || item.seller_name === (user?.name || 'Agro Ghana Ltd.'));
 
     return (
         <>

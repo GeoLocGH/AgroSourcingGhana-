@@ -6,7 +6,6 @@ import Button from './common/Button';
 import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, PhoneIcon, MailIcon, GridIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { fileToDataUri } from '../utils';
-import { uploadUserFile } from '../services/storageService';
 import { supabase } from '../services/supabase';
 import { useGeolocation } from '../hooks/useGeolocation';
 
@@ -153,7 +152,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
                 setMessages((prev) => [...prev, newMessage]);
 
-                // Play notification sound if message is incoming
                 if (newRecord.sender_id !== user.uid) {
                      try {
                         new Audio('/notification.mp3').play().catch(() => {});
@@ -241,7 +239,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
       setIsSending(true);
 
-      // 1. Get the current logged-in user securely
       const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
 
       if (authError || !currentUser) {
@@ -250,15 +247,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           return;
       }
 
-      // 2. Identify Receiver
       const receiverId = chatContext.receiverId || chatContext.participants?.find(p => p !== currentUser.id);
       
-      // 3. Log data to console for debugging as requested
-      console.log("Sender:", currentUser.id);
-      console.log("Receiver:", receiverId);
-      console.log("Item:", chatContext.id);
-
-      // --- Strict Validation Checklist ---
       if (!chatContext.id) {
           console.error("Missing Item ID (Chat Context ID)");
           setIsSending(false);
@@ -274,7 +264,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           const { error } = await supabase.from('chats').insert([{
               sender_id: currentUser.id,
               receiver_id: receiverId,
-              item_id: String(chatContext.id), // Ensure string format
+              item_id: String(chatContext.id),
               message_text: currentMessage.trim()
           }]);
           
@@ -316,6 +306,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
     }
   };
 
+  // Implement Logic as per request: Upload to 'user_uploads', use 'user_id' & 'image_url'
   const handleAddItem = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user?.uid) {
@@ -326,11 +317,34 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       setIsSubmitting(true);
       try {
           let imageUrl = '';
+          
+          // 1. Authenticate & Prepare User ID (Robust method)
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          const userId = authUser?.id || user.uid;
+
+          // 2. Upload Logic matching requirements
           if (itemImageFile) {
-              const uploaded = await uploadUserFile(user.uid, itemImageFile, 'rental', '', `Equipment: ${currentItem.name}`);
-              imageUrl = uploaded.file_url;
+              const fileExt = itemImageFile.name.split('.').pop();
+              // Using timestamp to ensure uniqueness while keeping it traceable, compatible with user request structure
+              const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+              const filePath = `rental/${fileName}`;
+
+              // Upload to 'user_uploads' bucket
+              const { error: uploadError } = await supabase.storage
+                  .from('user_uploads')
+                  .upload(filePath, itemImageFile);
+
+              if (uploadError) throw uploadError;
+
+              // Construct Public URL
+              const { data: urlData } = supabase.storage
+                  .from('user_uploads')
+                  .getPublicUrl(filePath);
+              
+              imageUrl = urlData.publicUrl;
           }
 
+          // 3. Prepare Payload with correct column names: 'image_url' and 'user_id'
           const newItem = {
               name: currentItem.name,
               type: currentItem.type,
@@ -339,21 +353,22 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               location_lng: currentItem.location_lng ?? null,
               price_per_day: isNaN(Number(currentItem.price_per_day)) ? 0 : Number(currentItem.price_per_day),
               description: currentItem.description,
-              image_url: imageUrl,
+              image_url: imageUrl, // Mapping to image_url
               owner: user.name,
-              user_id: user.uid, // Corrected from owner_id to user_id
+              user_id: userId, // Mapping to user_id
               available: true,
               created_at: new Date().toISOString()
           };
 
-          const { error } = await supabase.from('equipment').insert([newItem]);
-          if (error) throw error;
+          // 4. Insert into 'equipment' table
+          const { error: dbError } = await supabase.from('equipment').insert([newItem]);
+          
+          if (dbError) throw dbError;
 
           setIsFormVisible(false);
           resetForm();
           addNotification({ type: 'rental', title: 'Equipment Added', message: `${newItem.name} is now listed.`, view: 'RENTAL' });
       } catch (error: any) {
-          // Use JSON.stringify to see full object error if it happens again
           console.error("Error adding equipment:", JSON.stringify(error, null, 2));
           addNotification({ type: 'rental', title: 'Error', message: `Failed to list equipment. ${error.message || ''}`, view: 'RENTAL' });
       } finally {
@@ -368,9 +383,24 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
         setIsSubmitting(true);
         try {
             let imageUrl = currentItem.image_url;
+            
             if (itemImageFile) {
-                const uploaded = await uploadUserFile(user.uid, itemImageFile, 'rental', '', `Equipment: ${currentItem.name}`);
-                imageUrl = uploaded.file_url;
+                // Same upload logic for update
+                const fileExt = itemImageFile.name.split('.').pop();
+                const fileName = `${Date.now()}_update.${fileExt}`;
+                const filePath = `rental/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('user_uploads')
+                    .upload(filePath, itemImageFile);
+
+                if (uploadError) throw uploadError;
+
+                const { data: urlData } = supabase.storage
+                    .from('user_uploads')
+                    .getPublicUrl(filePath);
+                
+                imageUrl = urlData.publicUrl;
             }
 
             const updates = {
