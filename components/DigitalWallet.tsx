@@ -74,14 +74,12 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Linked Accounts
-  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([
-      { id: '1', type: 'MOMO', provider: 'MTN', accountNumber: '0244123456', accountName: user?.name || 'User' }
-  ]);
+  // Linked Accounts - Initialized as empty, populated via useEffect based on user record
+  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
 
   // Inputs
   const [amount, setAmount] = useState('');
-  const [recipient, setRecipient] = useState('');
+  const [recipient, setRecipient] = useState(''); // Used for transfer recipient OR manual deposit phone number
   const [selectedAccount, setSelectedAccount] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('');
   const [reference, setReference] = useState('');
@@ -106,6 +104,25 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
   const [verificationResult, setVerificationResult] = useState<any>(null);
 
   // --- Effects ---
+
+  // Autofill Linked Accounts from User Profile
+  useEffect(() => {
+    if (user?.phone && user?.network) {
+        setLinkedAccounts(prev => {
+            // Only add if not already present (avoid duplicates on re-renders)
+            if (prev.find(a => a.accountNumber === user.phone)) return prev;
+            return [{
+                id: 'auto-linked-1',
+                type: 'MOMO',
+                provider: user.network || 'MTN',
+                accountNumber: user.phone || '',
+                accountName: user.name
+            }, ...prev];
+        });
+        // Default to the auto-linked account if none selected
+        if (!selectedAccount) setSelectedAccount('auto-linked-1');
+    }
+  }, [user?.phone, user?.network, user?.name]);
 
   useEffect(() => {
       if (user?.uid) {
@@ -180,8 +197,19 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
       try {
           // If it's a deposit, we use the service to simulate external flow (USSD trigger)
           if (type === 'DEPOSIT') {
-              const account = linkedAccounts.find(a => a.id === selectedAccount);
-              await initiatePayment(user, txAmount, account?.provider || 'MTN', account?.accountNumber || user.phone || '0240000000');
+              let provider = 'MTN';
+              let phoneNumber = '0240000000';
+
+              if (selectedAccount === 'MANUAL') {
+                  provider = selectedProvider || 'MTN';
+                  phoneNumber = recipient || user.phone || '0240000000';
+              } else {
+                  const account = linkedAccounts.find(a => a.id === selectedAccount);
+                  provider = account?.provider || 'MTN';
+                  phoneNumber = account?.accountNumber || user.phone || '0240000000';
+              }
+
+              await initiatePayment(user, txAmount, provider, phoneNumber);
           } else {
               // Direct DB insert for other types
               const { error } = await supabase.from('transactions').insert([{
@@ -205,6 +233,7 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
           setAmount('');
           setRecipient('');
           setReference('');
+          setSelectedProvider('');
           setActiveView('HOME'); // Return home on success
 
       } catch (error) {
@@ -473,14 +502,48 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
                 <select value={selectedAccount} onChange={e => setSelectedAccount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900">
                     <option value="">Select Linked Account</option>
                     {linkedAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.provider} - {acc.accountNumber}</option>)}
+                    <option value="MANUAL">Manual Entry</option>
                 </select>
-                {linkedAccounts.length === 0 && <p className="text-xs text-red-500 mt-1">Please link an account first.</p>}
+                {linkedAccounts.length === 0 && selectedAccount !== 'MANUAL' && <p className="text-xs text-red-500 mt-1">Please link an account or select manual entry.</p>}
             </div>
+
+            {selectedAccount === 'MANUAL' && (
+                <div className="grid grid-cols-2 gap-3 animate-fade-in">
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Provider</label>
+                        <select 
+                            value={selectedProvider} 
+                            onChange={e => setSelectedProvider(e.target.value)} 
+                            className="w-full p-3 bg-gray-50 border rounded-lg outline-none text-gray-900"
+                        >
+                            <option value="">Select</option>
+                            {NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Number</label>
+                        <input 
+                            value={recipient} 
+                            onChange={e => setRecipient(e.target.value)} 
+                            placeholder="024..." 
+                            className="w-full p-3 bg-gray-50 border rounded-lg outline-none text-gray-900"
+                        />
+                    </div>
+                </div>
+            )}
+
             <div>
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
                 <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900" placeholder="0.00" />
             </div>
-            <Button onClick={() => handleTransactionStart(mode === 'WITHDRAW' ? 'WITHDRAWAL' : mode, parseFloat(amount), `${mode === 'DEPOSIT' ? 'Deposit from' : 'Withdrawal to'} Linked Account`)} className={`w-full ${mode === 'DEPOSIT' ? 'bg-green-600' : 'bg-red-600'}`}>
+            
+            <Button onClick={() => {
+                const desc = selectedAccount === 'MANUAL' 
+                    ? `${mode === 'DEPOSIT' ? 'Deposit from' : 'Withdrawal to'} ${selectedProvider} - ${recipient}`
+                    : `${mode === 'DEPOSIT' ? 'Deposit from' : 'Withdrawal to'} Linked Account`;
+                
+                handleTransactionStart(mode === 'WITHDRAW' ? 'WITHDRAWAL' : mode, parseFloat(amount), desc);
+            }} className={`w-full ${mode === 'DEPOSIT' ? 'bg-green-600' : 'bg-red-600'}`}>
                 Confirm {mode === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'}
             </Button>
         </div>

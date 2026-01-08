@@ -13,7 +13,7 @@ export type View =
   | 'ADMIN' 
   | 'PROFILE';
 
-export type UserType = 'admin' | 'buyer' | 'seller' | 'farmer';
+export type UserType = 'admin' | 'buyer' | 'seller' | 'farmer' | 'agent';
 
 export interface User {
   uid?: string;

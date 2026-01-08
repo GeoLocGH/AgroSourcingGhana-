@@ -2,18 +2,30 @@
 import React, { useState } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { ChartBarIcon } from './common/icons';
+import { ChartBarIcon, ShieldCheckIcon, UserCircleIcon } from './common/icons';
 import { generateAnalyticsReport } from '../services/geminiService';
 import { getAllTransactions } from '../services/paymentService';
+import { supabase } from '../services/supabase';
 import { marked } from 'marked';
-import type { User } from '../types';
+import type { User, UserType } from '../types';
 
 interface AdminDashboardProps {
   user: User | null;
   onLogin: (user: User) => void;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogin }) => {
+  // Auth State
+  const [authMode, setAuthMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [regRole, setRegRole] = useState<'admin' | 'agent'>('agent');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // Dashboard State
   const [reportInput, setReportInput] = useState('');
   const [reportResult, setReportResult] = useState('');
   const [reportLoading, setReportLoading] = useState(false);
@@ -44,6 +56,201 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       }
   };
 
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setAuthLoading(true);
+      setAuthError('');
+
+      try {
+          if (authMode === 'LOGIN') {
+              const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+              if (error) throw error;
+              
+              if (data.user) {
+                  // Fetch profile
+                  const { data: profile, error: profileError } = await supabase
+                      .from('users')
+                      .select('*')
+                      .eq('id', data.user.id)
+                      .single();
+                  
+                  if (profile) {
+                      onLogin({ ...profile, uid: data.user.id } as User);
+                  } else {
+                      // Fallback if profile doesn't exist yet, try metadata
+                      const metaType = data.user.user_metadata?.user_type as UserType;
+                      const userType = (metaType === 'admin' || metaType === 'agent') ? metaType : 'admin'; // Default fallback
+
+                      onLogin({ 
+                          uid: data.user.id, 
+                          email: data.user.email!, 
+                          name: data.user.user_metadata.full_name || 'Admin', 
+                          type: userType 
+                      } as User);
+                  }
+              }
+          } else {
+              // Register
+              const { data, error } = await supabase.auth.signUp({
+                  email,
+                  password,
+                  options: {
+                      data: {
+                          full_name: name,
+                          phone: phone,
+                          user_type: regRole
+                      }
+                  }
+              });
+              if (error) throw error;
+
+              if (data.user) {
+                  const newUser = {
+                      id: data.user.id,
+                      name,
+                      email,
+                      phone,
+                      type: regRole,
+                      merchant_id: `${regRole.toUpperCase()}-${Date.now()}`
+                  };
+                  // Manually insert to ensure it exists immediately
+                  await supabase.from('users').upsert([newUser]);
+                  
+                  onLogin({ ...newUser, uid: data.user.id } as User);
+              }
+          }
+      } catch (err: any) {
+          setAuthError(err.message || 'Authentication failed');
+      } finally {
+          setAuthLoading(false);
+      }
+  };
+
+  // 1. Not Logged In -> Show Admin/Agent Login/Register
+  if (!user) {
+      return (
+          <div className="max-w-md mx-auto mt-10 animate-fade-in">
+              <Card className="bg-white border-t-4 border-blue-600 shadow-xl">
+                  <div className="text-center mb-6">
+                      <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-700">
+                          <ShieldCheckIcon className="w-8 h-8" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900">Executive Portal</h2>
+                      <p className="text-sm text-gray-500">Restricted Access for Admins & Reporting Agents</p>
+                  </div>
+
+                  {authError && (
+                      <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center">
+                          {authError}
+                      </div>
+                  )}
+
+                  <div className="flex border-b border-gray-200 mb-6">
+                      <button 
+                          className={`flex-1 py-2 text-sm font-medium ${authMode === 'LOGIN' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                          onClick={() => setAuthMode('LOGIN')}
+                      >
+                          Login
+                      </button>
+                      <button 
+                          className={`flex-1 py-2 text-sm font-medium ${authMode === 'REGISTER' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                          onClick={() => setAuthMode('REGISTER')}
+                      >
+                          Register Agent
+                      </button>
+                  </div>
+
+                  <form onSubmit={handleAuthSubmit} className="space-y-4">
+                      {authMode === 'REGISTER' && (
+                          <>
+                              <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                                  <select 
+                                      value={regRole} 
+                                      onChange={e => setRegRole(e.target.value as 'admin' | 'agent')} 
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-white"
+                                  >
+                                      <option value="agent">Executive Reporting Agent</option>
+                                      <option value="admin">System Administrator</option>
+                                  </select>
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                  <input 
+                                      required 
+                                      value={name} 
+                                      onChange={e => setName(e.target.value)} 
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                                      placeholder="Agent Name"
+                                  />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                                  <input 
+                                      required 
+                                      type="tel"
+                                      value={phone} 
+                                      onChange={e => setPhone(e.target.value)} 
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                                      placeholder="Official Phone Number"
+                                  />
+                              </div>
+                          </>
+                      )}
+                      
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                          <input 
+                              required 
+                              type="email"
+                              value={email} 
+                              onChange={e => setEmail(e.target.value)} 
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                              placeholder="agent@agrosourcing.com"
+                          />
+                      </div>
+                      
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                          <input 
+                              required 
+                              type="password"
+                              value={password} 
+                              onChange={e => setPassword(e.target.value)} 
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                              placeholder="••••••••"
+                          />
+                      </div>
+
+                      <Button type="submit" isLoading={authLoading} className="w-full bg-blue-600 hover:bg-blue-700 mt-2">
+                          {authMode === 'LOGIN' ? 'Access Dashboard' : 'Register'}
+                      </Button>
+                  </form>
+              </Card>
+          </div>
+      );
+  }
+
+  // 2. Logged In but Not Admin or Agent -> Unauthorized
+  if (user.type !== 'admin' && user.type !== 'agent') {
+      return (
+          <div className="max-w-md mx-auto mt-20 text-center animate-fade-in">
+              <div className="inline-block p-4 bg-red-100 rounded-full text-red-600 mb-4">
+                  <ShieldCheckIcon className="w-12 h-12" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Unauthorized Access</h2>
+              <p className="text-gray-600 mb-6">
+                  Your account ({user.email}) is not authorized to view the Executive Portal.
+                  This area is restricted to Admins and Executive Reporting Agents.
+              </p>
+              <div className="bg-gray-100 p-2 rounded text-xs text-gray-500 inline-block">
+                  Current Role: <span className="font-mono uppercase">{user.type}</span>
+              </div>
+          </div>
+      );
+  }
+
+  // 3. Admin/Agent Logged In -> Show Dashboard
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 mb-6">
@@ -51,8 +258,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
            <ChartBarIcon className="w-8 h-8" />
         </div>
         <div>
-           <h2 className="text-2xl font-bold text-gray-800">Admin Dashboard</h2>
-           <p className="text-gray-600">Platform overview and AI analytics.</p>
+           <h2 className="text-2xl font-bold text-gray-800">Executive Dashboard</h2>
+           <p className="text-gray-600">Platform overview and AI analytics for {user.name} ({user.type}).</p>
         </div>
       </div>
 

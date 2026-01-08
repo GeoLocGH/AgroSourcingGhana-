@@ -173,7 +173,7 @@ const App: React.FC = () => {
 
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);
-    if (loggedInUser.type === 'admin') {
+    if (loggedInUser.type === 'admin' || loggedInUser.type === 'agent') {
         setActiveView('ADMIN');
     }
   };
