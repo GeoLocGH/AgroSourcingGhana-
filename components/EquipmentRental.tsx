@@ -207,7 +207,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           addNotification({ type: 'rental', title: 'Inquiry Sent', message: 'The owner will contact you shortly.', view: 'RENTAL' });
       } catch (err: any) {
           console.error("Error sending inquiry:", err);
-          addNotification({ type: 'rental', title: 'Error', message: 'Failed to send inquiry.', view: 'RENTAL' });
+          // Fixed: Show the specific error message from the database
+          addNotification({ type: 'rental', title: 'Error', message: `Failed to send inquiry: ${err.message || 'Unknown error'}`, view: 'RENTAL' });
       } finally {
           setIsSubmitting(false);
       }
@@ -222,12 +223,18 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           addNotification({ type: 'rental', title: 'Error', message: 'You cannot chat with yourself.', view: 'RENTAL' });
           return;
       }
+      
+      // Fixed: Prevent chat if item owner ID is missing (legacy data)
+      if (!item.user_id) {
+          addNotification({ type: 'rental', title: 'Unavailable', message: 'Owner information is missing for this item.', view: 'RENTAL' });
+          return;
+      }
 
       setChatContext({
           id: String(item.id),
           name: item.owner,
           subject: item.name,
-          participants: [user.uid, item.user_id || ''],
+          participants: [user.uid, item.user_id],
           receiverId: item.user_id
       });
       setIsChatVisible(true);
@@ -256,6 +263,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       }
       if (!receiverId) {
           console.error("Missing Receiver ID. Participants:", chatContext.participants);
+          addNotification({ type: 'rental', title: 'Error', message: 'Unable to identify message recipient.', view: 'RENTAL' });
           setIsSending(false);
           return;
       }
@@ -273,7 +281,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           setCurrentMessage('');
       } catch (err: any) {
           console.error("Chat Error:", err.message);
-          addNotification({ type: 'rental', title: 'Error', message: 'Failed to send message.', view: 'RENTAL' });
+          // Fixed: Show specific error message
+          addNotification({ type: 'rental', title: 'Error', message: `Failed to send: ${err.message}`, view: 'RENTAL' });
       } finally {
           setIsSending(false);
       }
