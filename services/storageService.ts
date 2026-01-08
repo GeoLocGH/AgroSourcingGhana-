@@ -20,13 +20,15 @@ export const uploadUserFile = async (
     
     if (context === 'admin-logo') {
         storagePath = `admin/${timestamp}_${safeFileName}`;
+    } else if (context === 'rental') {
+        // Direct rental folder as requested: rental/[FILE_NAME]
+        storagePath = `rental/${timestamp}_${safeFileName}`;
     } else {
         let subfolder = 'misc';
         switch (context) {
             case 'profile': subfolder = 'profile'; break;
             case 'pest-diagnosis': subfolder = 'diagnosis'; break;
             case 'marketplace': subfolder = 'market'; break;
-            case 'rental': subfolder = 'rental'; break;
             case 'forum': subfolder = 'forum'; break;
         }
         storagePath = `${userId}/${subfolder}/${timestamp}_${safeFileName}`;
@@ -51,7 +53,7 @@ export const uploadUserFile = async (
       context,
       ai_summary: aiSummary || null,
       notes: notes || null,
-      createdAt: new Date().toISOString()
+      created_at: new Date().toISOString()
     };
 
     if (userId && context !== 'admin-logo') {
@@ -112,7 +114,7 @@ export const getUserFiles = async (userId: string): Promise<UserFile[]> => {
         .from('user_files')
         .select('*')
         .eq('user_id', userId)
-        .order('createdAt', { ascending: false });
+        .order('created_at', { ascending: false });
 
     if (error) {
         // Handle common error where table might not exist in development (code 42P01 is undefined_table)

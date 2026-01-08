@@ -98,7 +98,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
           const { data: marketData } = await supabase.from('marketplace').select('*').eq('owner_id', user.uid);
           setMyListings((marketData as MarketplaceItem[]) || []);
 
-          const { data: equipData } = await supabase.from('equipment').select('*').eq('owner_id', user.uid);
+          const { data: equipData } = await supabase.from('equipment').select('*').eq('user_id', user.uid);
           setMyEquipment((equipData as EquipmentItem[]) || []);
       } catch (error) {
           console.error("Error fetching listings:", error);

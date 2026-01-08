@@ -73,7 +73,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'createdAt' | 'likes' | 'userHasLiked' | 'owner_id' | 'seller_name'>>({ 
+    const [newItem, setNewItem] = useState<Omit<MarketplaceItem, 'id' | 'image_urls' | 'created_at' | 'likes' | 'userHasLiked' | 'owner_id' | 'seller_name'>>({ 
         title: '', 
         category: 'Seeds', 
         price: 0,
@@ -122,11 +122,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         setLoadingItems(true);
 
         const fetchItems = async () => {
-            // Fetch Items - ordered by createdAt (camelCase) as per error message hint
+            // Fetch Items - ordered by created_at (snake_case)
             const { data: itemsData, error: itemsError } = await supabase
                 .from('marketplace')
                 .select('*')
-                .order('createdAt', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (itemsError) {
                 console.error("Error fetching items:", JSON.stringify(itemsError, null, 2));
@@ -487,7 +487,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 seller_email: user.email,
                 seller_phone: user.phone || '',
                 merchant_id: user.merchant_id || null, // Auto-included if user has it
-                createdAt: new Date().toISOString()
+                created_at: new Date().toISOString() // Standardized to created_at
             };
 
             const { error: dbError } = await supabase.from('marketplace').insert([newItemData]);
@@ -523,7 +523,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         if(!itemToEdit) return;
 
         try {
-            const { id, likes, userHasLiked, createdAt, ...dataToUpdate } = itemToEdit;
+            const { id, likes, userHasLiked, created_at, ...dataToUpdate } = itemToEdit;
             
             const { error } = await supabase
                 .from('marketplace')
@@ -798,7 +798,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 return a.title.localeCompare(b.title);
             case 'Newest':
             default:
-                if (a.createdAt && b.createdAt) return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                if (a.created_at && b.created_at) return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
                 return 0; 
         }
     });

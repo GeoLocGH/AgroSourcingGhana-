@@ -220,7 +220,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           onRequireLogin();
           return;
       }
-      if (item.owner_id === user.uid) {
+      if (item.user_id === user.uid) {
           addNotification({ type: 'rental', title: 'Error', message: 'You cannot chat with yourself.', view: 'RENTAL' });
           return;
       }
@@ -229,8 +229,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           id: String(item.id),
           name: item.owner,
           subject: item.name,
-          participants: [user.uid, item.owner_id || ''],
-          receiverId: item.owner_id
+          participants: [user.uid, item.user_id || ''],
+          receiverId: item.user_id
       });
       setIsChatVisible(true);
   };
@@ -335,13 +335,13 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               name: currentItem.name,
               type: currentItem.type,
               location: currentItem.location,
-              location_lat: currentItem.location_lat,
-              location_lng: currentItem.location_lng,
-              price_per_day: currentItem.price_per_day,
+              location_lat: currentItem.location_lat ?? null,
+              location_lng: currentItem.location_lng ?? null,
+              price_per_day: isNaN(Number(currentItem.price_per_day)) ? 0 : Number(currentItem.price_per_day),
               description: currentItem.description,
               image_url: imageUrl,
               owner: user.name,
-              owner_id: user.uid,
+              user_id: user.uid, // Corrected from owner_id to user_id
               available: true,
               created_at: new Date().toISOString()
           };
@@ -353,8 +353,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           resetForm();
           addNotification({ type: 'rental', title: 'Equipment Added', message: `${newItem.name} is now listed.`, view: 'RENTAL' });
       } catch (error: any) {
-          console.error("Error adding equipment:", error);
-          addNotification({ type: 'rental', title: 'Error', message: 'Failed to list equipment.', view: 'RENTAL' });
+          // Use JSON.stringify to see full object error if it happens again
+          console.error("Error adding equipment:", JSON.stringify(error, null, 2));
+          addNotification({ type: 'rental', title: 'Error', message: `Failed to list equipment. ${error.message || ''}`, view: 'RENTAL' });
       } finally {
           setIsSubmitting(false);
       }
@@ -376,9 +377,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 name: currentItem.name,
                 type: currentItem.type,
                 location: currentItem.location,
-                location_lat: currentItem.location_lat,
-                location_lng: currentItem.location_lng,
-                price_per_day: currentItem.price_per_day,
+                location_lat: currentItem.location_lat ?? null,
+                location_lng: currentItem.location_lng ?? null,
+                price_per_day: isNaN(Number(currentItem.price_per_day)) ? 0 : Number(currentItem.price_per_day),
                 description: currentItem.description,
                 image_url: imageUrl,
             };
@@ -390,7 +391,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             resetForm();
             addNotification({ type: 'rental', title: 'Updated', message: 'Equipment details updated.', view: 'RENTAL' });
         } catch (error) {
-            console.error("Error updating:", error);
+            console.error("Error updating:", JSON.stringify(error, null, 2));
             addNotification({ type: 'rental', title: 'Error', message: 'Failed to update item.', view: 'RENTAL' });
         } finally {
             setIsSubmitting(false);
@@ -407,7 +408,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           setItemToDelete(null);
           addNotification({ type: 'rental', title: 'Deleted', message: 'Equipment removed.', view: 'RENTAL' });
       } catch (error) {
-          console.error("Error deleting:", error);
+          console.error("Error deleting:", JSON.stringify(error, null, 2));
           addNotification({ type: 'rental', title: 'Error', message: 'Failed to delete item.', view: 'RENTAL' });
       }
   };
@@ -436,7 +437,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   };
 
   const canManage = (item: EquipmentItem) => {
-      return user && (user.uid === item.owner_id || user.type === 'admin');
+      return user && (user.uid === item.user_id || user.type === 'admin');
   };
 
   return (
@@ -492,12 +493,21 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             ) : (
                 filteredItems.map(item => (
                     <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
-                        <div className="relative h-48 -mx-6 -mt-6 mb-4 bg-gray-200">
-                             <img src={item.image_url || 'https://placehold.co/600x400?text=Equipment'} alt={item.name} className="w-full h-full object-cover" />
+                        <div className="relative h-48 -mx-6 -mt-6 mb-4 bg-gray-200 group overflow-hidden">
+                             <img 
+                                src={item.image_url || 'https://placehold.co/600x400?text=Equipment'} 
+                                alt={item.name} 
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.onerror = null;
+                                    target.src = 'https://placehold.co/600x400?text=No+Image';
+                                }}
+                             />
                              {canManage(item) && (
-                                 <div className="absolute top-2 right-2 flex gap-1">
-                                     <button onClick={() => openEditModal(item)} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-blue-600"><PencilIcon className="w-4 h-4" /></button>
-                                     <button onClick={() => { setItemToDelete(item); setIsDeleteModalVisible(true); }} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-red-600"><TrashIcon className="w-4 h-4" /></button>
+                                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                     <button onClick={() => openEditModal(item)} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4" /></button>
+                                     <button onClick={() => { setItemToDelete(item); setIsDeleteModalVisible(true); }} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-red-600 shadow-sm"><TrashIcon className="w-4 h-4" /></button>
                                  </div>
                              )}
                         </div>

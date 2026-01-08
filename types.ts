@@ -113,7 +113,7 @@ export interface MarketplaceItem {
   location_lng?: number;
   location_name?: string;
   image_urls?: string[];
-  createdAt?: string; // Corrected to match DB schema (camelCase)
+  created_at?: string; // Standardized to snake_case
   likes?: number;
   userHasLiked?: boolean;
   merchant_id?: string | null;
@@ -180,7 +180,7 @@ export interface EquipmentItem {
   name: string;
   type: EquipmentType;
   owner: string;
-  owner_id?: string;
+  user_id: string; // Explicitly using user_id instead of owner_id
   location: string;
   location_lat?: number;
   location_lng?: number;
@@ -188,7 +188,7 @@ export interface EquipmentItem {
   image_url?: string;
   available: boolean;
   description?: string;
-  created_at?: string; // Corrected to match DB schema (snake_case)
+  created_at?: string; 
 }
 
 export interface Inquiry {
@@ -234,5 +234,5 @@ export interface UserFile {
   context: 'admin-logo' | 'profile' | 'pest-diagnosis' | 'marketplace' | 'rental' | 'forum' | 'misc';
   ai_summary?: string | null;
   notes?: string | null;
-  createdAt: string;
+  created_at: string; // Standardized to snake_case
 }
