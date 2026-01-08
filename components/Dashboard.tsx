@@ -1,10 +1,11 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Card from './common/Card';
-import { CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, AlertTriangleIcon, HarvesterIcon, WalletIcon, TractorIcon, Spinner, UploadIcon } from './common/icons';
+import { CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, AlertTriangleIcon, HarvesterIcon, WalletIcon, TractorIcon, Spinner, UploadIcon, BanknotesIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { checkWeatherAlerts } from '../services/geminiService';
+import { getWalletBalance } from '../services/paymentService';
 import type { View, User } from '../types';
 import { uploadUserFile } from '../services/storageService';
 import { supabase } from '../services/supabase';
@@ -23,6 +24,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [walletBalance, setWalletBalance] = useState<number>(0);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -65,6 +68,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
         setLiveAlert('Waiting for location access to scan for alerts...');
     }
   }, [location]);
+
+  useEffect(() => {
+      if (user?.uid) {
+          getWalletBalance(user.uid).then(setWalletBalance);
+      } else {
+          setWalletBalance(0);
+      }
+  }, [user]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -192,6 +203,28 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
             <p className="mt-1 text-sm text-gray-600">{feature.description}</p>
           </Card>
         ))}
+
+        {/* Live Wallet Widget Card - Fills empty grid slot */}
+        <Card 
+            onClick={() => setActiveView('WALLET')}
+            className="flex flex-col items-center justify-center text-center p-6 hover:-translate-y-1 !border transition-colors bg-emerald-50 border-emerald-100 hover:border-emerald-300 cursor-pointer"
+        >
+            <div className="p-4 rounded-full bg-emerald-200 text-emerald-700 mb-4">
+                <BanknotesIcon className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-800">My Wallet</h3>
+            {user ? (
+                <div className="mt-2">
+                    <p className="text-2xl font-bold text-emerald-700">
+                        GHS {walletBalance.toFixed(2)}
+                    </p>
+                    <p className="text-[10px] text-emerald-600 font-medium">Available Balance</p>
+                </div>
+            ) : (
+                <p className="mt-2 text-sm text-gray-600 font-medium">Log in to view balance</p>
+            )}
+        </Card>
+
          <Card className="sm:col-span-2 lg:col-span-3 !bg-red-50 !border !border-red-200 hover:!border-red-300">
           <div className="flex flex-col gap-4">
               <div className="flex items-start gap-4 border-b border-red-200 pb-4">
