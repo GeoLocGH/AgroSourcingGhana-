@@ -148,6 +148,7 @@ export interface ForumReply {
 export interface ForumPost {
   id: number;
   author: string;
+  user_id?: string; // Added user_id
   created_at: string;
   title: string;
   content: string;

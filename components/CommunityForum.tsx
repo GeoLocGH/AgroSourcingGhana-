@@ -81,28 +81,23 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
         }
 
         const newPostData = {
-            // Let Supabase generate ID usually, but if using number ID on frontend, maybe use timestamp
-            // id: Date.now(), // Supabase identity column handles this
             author: user?.name || 'Guest Farmer', 
-            // Important: Add user_id if available to satisfy typical RLS policies
-            user_id: user?.uid || null,
-            created_at: new Date().toISOString(), // Use ISO string for DB
+            user_id: user?.uid || null, // Re-enabled user_id now that SQL will be run
+            created_at: new Date().toISOString(),
             title: newPostTitle,
             content: newPostContent,
-            image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : null,
             images: uploadedUrls,
+            image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : null, // Backward compatibility
             replies: [],
         };
         
         const { error } = await supabase.from('forum_posts').insert([newPostData]);
         if (error) throw error;
         
-        // setPosts handled by realtime subscription or optimistic update could be added here
         setView('LIST');
         setNewPostTitle(''); setNewPostContent(''); setNewPostFiles([]); setNewPostPreviews([]);
     } catch (err: any) {
         console.error("Error creating post:", err);
-        // Extract message from Supabase error object or standard Error object
         const msg = err.message || err.details || JSON.stringify(err);
         setError(`Failed to create post: ${msg}`);
     } finally {
@@ -177,9 +172,12 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
       }
   };
 
+  const isOwner = (post: ForumPost) => {
+      return user?.uid && (post.user_id === user.uid || post.author === user.name);
+  };
+
   return (
     <Card>
-        {/* UI Structure mirrors previous component. View Switching logic */}
         {view === 'LIST' && (
             <div>
                 <div className="flex justify-between items-center mb-4">
@@ -198,14 +196,25 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                                             <h3 className="font-bold text-lg text-gray-800">{post.title}</h3>
                                             <p className="text-sm text-gray-500 mt-1">By <span className="font-medium text-green-700">{post.author}</span> • {new Date(post.created_at).toLocaleDateString()}</p>
                                         </div>
-                                        <div className="flex items-center gap-1 text-gray-400">
-                                            <MessageSquareIcon className="w-4 h-4" />
-                                            <span className="text-xs">{post.replies?.length || 0}</span>
+                                        <div className="flex items-center gap-2">
+                                            {isOwner(post) && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDeletePost(post.id); }}
+                                                    className="p-1.5 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50"
+                                                    title="Delete Post"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            <div className="flex items-center gap-1 text-gray-400">
+                                                <MessageSquareIcon className="w-4 h-4" />
+                                                <span className="text-xs">{post.replies?.length || 0}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    {post.image_url && (
+                                    {(post.images?.[0] || post.image_url) && (
                                         <div className="mt-3 h-32 w-full bg-gray-100 rounded-md overflow-hidden">
-                                            <img src={post.image_url} alt="Post Attachment" className="w-full h-full object-cover" />
+                                            <img src={post.images?.[0] || post.image_url || ''} alt="Post Attachment" className="w-full h-full object-cover" />
                                         </div>
                                     )}
                                 </Card>
@@ -218,9 +227,19 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
         
         {view === 'POST' && selectedPost && (
             <div>
-                 <Button onClick={() => setView('LIST')} className="mb-4 bg-gray-200 !text-gray-900 hover:bg-gray-300">
-                    <ArrowLeftIcon className="w-4 h-4 mr-2 inline" /> Back
-                 </Button>
+                 <div className="flex justify-between items-center mb-4">
+                     <Button onClick={() => setView('LIST')} className="bg-gray-200 !text-gray-900 hover:bg-gray-300">
+                        <ArrowLeftIcon className="w-4 h-4 mr-2 inline" /> Back
+                     </Button>
+                     {isOwner(selectedPost) && (
+                        <button 
+                            onClick={() => handleDeletePost(selectedPost.id)}
+                            className="text-red-500 hover:text-red-700 flex items-center gap-1 text-sm font-medium"
+                        >
+                            <TrashIcon className="w-4 h-4" /> Delete Thread
+                        </button>
+                     )}
+                 </div>
                  
                  <div className="mb-6">
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedPost.title}</h2>
