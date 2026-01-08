@@ -28,7 +28,9 @@ export const initiatePayment = async (user: User, amount: number, provider: stri
     // In production, the Edge Function (payment-webhook) would be called by MTN/Paystack.
     // Here, we simulate that external call after 3 seconds.
     setTimeout(async () => {
-        await simulateWebhookSuccess(data.id);
+        if (data?.id) {
+            await simulateWebhookSuccess(data.id);
+        }
     }, 3000);
 
     return data;
@@ -54,7 +56,10 @@ export const getTransactionHistory = async (userId: string) => {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
     
-    if (error) throw error;
+    if (error) {
+        console.error("Error fetching history:", JSON.stringify(error));
+        return [];
+    }
     return data;
 };
 
@@ -85,18 +90,21 @@ export const getWalletBalance = async (userId: string): Promise<number> => {
         .eq('status', 'completed');
 
     if (error) {
-        console.error("Error calculating balance:", error);
+        // Fix: Stringify error to avoid [object Object] output
+        console.error("Error calculating balance:", JSON.stringify(error));
         return 0;
     }
 
     let balance = 0;
-    data.forEach((tx: any) => {
-        if (tx.type === 'DEPOSIT' || tx.type === 'LOAN') {
-            balance += tx.amount;
-        } else if (tx.type === 'WITHDRAWAL' || tx.type === 'PAYMENT' || tx.type === 'TRANSFER') {
-            balance -= tx.amount;
-        }
-    });
+    if (data) {
+        data.forEach((tx: any) => {
+            if (tx.type === 'DEPOSIT' || tx.type === 'LOAN') {
+                balance += tx.amount;
+            } else if (tx.type === 'WITHDRAWAL' || tx.type === 'PAYMENT' || tx.type === 'TRANSFER') {
+                balance -= tx.amount;
+            }
+        });
+    }
 
     return balance;
 };

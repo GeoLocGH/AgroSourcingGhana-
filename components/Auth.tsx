@@ -8,7 +8,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { supabase } from '../services/supabase';
 import { uploadUserFile } from '../services/storageService';
 
-export type AuthModalState = 'CLOSED' | 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' | 'VERIFICATION';
+export type AuthModalState = 'CLOSED' | 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' | 'VERIFICATION' | 'UPDATE_PASSWORD';
 
 interface AuthProps {
   user: User | null;
@@ -30,6 +30,9 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
+
+  // Password Update State
+  const [newPassword, setNewPassword] = useState('');
 
   // Register Form State
   const [regName, setRegName] = useState('');
@@ -53,6 +56,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
     setRegRepeatPass('');
     setRegPhoto(null);
     setRegNetwork('MTN');
+    setNewPassword('');
     setAuthError('');
     setIsLoading(false);
     setResetLinkSent(false);
@@ -241,6 +245,25 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
     }
   };
 
+  const handleUpdatePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      
+      addNotification({ type: 'auth', title: 'Success', message: 'Password updated successfully! You are now logged in.', view: 'DASHBOARD' });
+      closeModal();
+    } catch (error: any) {
+      console.error("Password update error", error);
+      setAuthError(error.message || "Failed to update password.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogoutClick = async () => {
       try {
         await supabase.auth.signOut();
@@ -364,6 +387,41 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                 </button>
               </form>
             )}
+          </Card>
+        </div>
+      )}
+
+      {/* Update Password Modal (New) */}
+      {modalState === 'UPDATE_PASSWORD' && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 text-gray-800">
+          <Card className="w-full max-w-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Create New Password</h3>
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-800">
+                <XIcon className="w-6 h-6" />
+              </button>
+            </div>
+            
+            {authError && (
+               <div className="mb-4 bg-red-100 text-red-700 p-3 rounded-lg text-sm font-medium">
+                 {authError}
+               </div>
+            )}
+
+            <form onSubmit={handleUpdatePasswordSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-900 bg-white mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  placeholder="Enter new password"
+                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <Button type="submit" isLoading={isLoading} className="w-full bg-green-700 hover:bg-green-800 mb-4">Update Password</Button>
+            </form>
           </Card>
         </div>
       )}

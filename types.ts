@@ -188,7 +188,7 @@ export interface EquipmentItem {
   image_url?: string;
   available: boolean;
   description?: string;
-  createdAt?: string; // Corrected to match DB schema (camelCase)
+  created_at?: string; // Corrected to match DB schema (snake_case)
 }
 
 export interface Inquiry {

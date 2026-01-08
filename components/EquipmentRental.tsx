@@ -78,7 +78,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             const { data, error } = await supabase
                 .from('equipment')
                 .select('*')
-                .order('createdAt', { ascending: false });
+                .order('created_at', { ascending: false });
             
             if (error) {
                 console.error("Error fetching equipment:", JSON.stringify(error, null, 2));
@@ -343,7 +343,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               owner: user.name,
               owner_id: user.uid,
               available: true,
-              createdAt: new Date().toISOString()
+              created_at: new Date().toISOString()
           };
 
           const { error } = await supabase.from('equipment').insert([newItem]);

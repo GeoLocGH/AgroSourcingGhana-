@@ -63,6 +63,11 @@ const App: React.FC = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
+  // Scroll to top when activeView changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeView]);
+
   // Listen for global app settings (Header Logo)
   useEffect(() => {
     const fetchSettings = async () => {
@@ -102,7 +107,7 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (_event === 'PASSWORD_RECOVERY') {
-            setAuthModalState('FORGOT_PASSWORD');
+            setAuthModalState('UPDATE_PASSWORD');
         }
         handleSession(session);
     });
@@ -292,110 +297,113 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-gray-900 font-sans text-gray-200 flex flex-col">
          {/* Main Container */}
         <main className="flex-grow p-4 md:p-6 relative">
-             {/* Floating Header Banner */}
-             <div className="max-w-5xl mx-auto bg-green-800 text-white shadow-2xl rounded-t-xl p-4 sm:px-6 flex justify-between items-center relative z-30 min-h-[88px]">
-                 {/* Title Section */}
-                 <div className="z-10 relative flex flex-col">
-                  <button 
-                    onClick={() => setActiveView('DASHBOARD')} 
-                    className="hover:opacity-90 transition-opacity text-left group"
-                  >
-                      <h1 className="text-xl sm:text-2xl font-bold tracking-tight group-hover:underline decoration-2 underline-offset-2">AgroSourcingGhana℠</h1>
-                  </button>
-                  <p className="text-xs sm:text-sm text-green-100 cursor-default">Localized, Actionable Insights for Farmers</p>
-                  <button 
-                    onClick={() => setActiveView('MARKETPLACE')} 
-                    className="text-xs sm:text-sm text-yellow-300 font-bold mt-0.5 tracking-wide hover:underline hover:text-yellow-200 text-left transition-colors"
-                  >
-                    Buy and Sell your Agricultural Products!
-                  </button>
-                </div>
+             {/* Wrapper for Header and Nav - Scrolls with page (removed sticky) */}
+             <div className="relative z-40 bg-gray-900 -mx-4 px-4 md:-mx-6 md:px-6 pt-1 pb-2 transition-all">
+                 {/* Floating Header Banner */}
+                 <div className="max-w-5xl mx-auto bg-green-800 text-white shadow-2xl rounded-t-xl p-4 sm:px-6 flex justify-between items-center relative z-30 min-h-[88px]">
+                     {/* Title Section */}
+                     <div className="z-10 relative flex flex-col">
+                      <button 
+                        onClick={() => setActiveView('DASHBOARD')} 
+                        className="hover:opacity-90 transition-opacity text-left group"
+                      >
+                          <h1 className="text-xl sm:text-2xl font-bold tracking-tight group-hover:underline decoration-2 underline-offset-2">AgroSourcingGhana℠</h1>
+                      </button>
+                      <p className="text-xs sm:text-sm text-green-100 cursor-default">Localized, Actionable Insights for Farmers</p>
+                      <button 
+                        onClick={() => setActiveView('MARKETPLACE')} 
+                        className="text-xs sm:text-sm text-yellow-300 font-bold mt-0.5 tracking-wide hover:underline hover:text-yellow-200 text-left transition-colors"
+                      >
+                        Buy and Sell your Agricultural Products!
+                      </button>
+                    </div>
 
-                {/* Central Logo Placeholder */}
-                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center">
-                    <input 
-                        type="file" 
-                        ref={logoInputRef} 
-                        onChange={handleFileSelect} 
-                        accept="image/png" 
-                        className="hidden" 
-                    />
-                    <div 
-                        className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-2 border-green-400/30 bg-green-900 overflow-hidden shadow-xl transition-all ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-400 hover:scale-105 group' : ''}`}
-                        onClick={() => user?.type === 'admin' && !isUploadingLogo && !pendingFile && logoInputRef.current?.click()}
-                        title={user?.type === 'admin' ? "Admin: Click to upload PNG logo" : "AgroSourcingGhana Logo"}
-                    >
-                        {currentDisplayLogo ? (
-                            <img src={currentDisplayLogo} alt="App Logo" className={`w-full h-full object-cover ${isUploadingLogo ? 'opacity-50' : ''}`} />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center relative bg-green-900">
-                                <AgroLogoIcon className="w-full h-full" />
-                                {user?.type === 'admin' && (
-                                     <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <UploadIcon className="w-6 h-6 text-white mb-1" />
-                                          <span className="text-[8px] font-bold text-white">UPLOAD</span>
-                                     </div>
-                                )}
-                            </div>
-                        )}
-                        {isUploadingLogo && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    {/* Central Logo Placeholder */}
+                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center">
+                        <input 
+                            type="file" 
+                            ref={logoInputRef} 
+                            onChange={handleFileSelect} 
+                            accept="image/png" 
+                            className="hidden" 
+                        />
+                        <div 
+                            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-2 border-green-400/30 bg-green-900 overflow-hidden shadow-xl transition-all ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-400 hover:scale-105 group' : ''}`}
+                            onClick={() => user?.type === 'admin' && !isUploadingLogo && !pendingFile && logoInputRef.current?.click()}
+                            title={user?.type === 'admin' ? "Admin: Click to upload PNG logo" : "AgroSourcingGhana Logo"}
+                        >
+                            {currentDisplayLogo ? (
+                                <img src={currentDisplayLogo} alt="App Logo" className={`w-full h-full object-cover ${isUploadingLogo ? 'opacity-50' : ''}`} />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center relative bg-green-900">
+                                    <AgroLogoIcon className="w-full h-full" />
+                                    {user?.type === 'admin' && (
+                                         <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                              <UploadIcon className="w-6 h-6 text-white mb-1" />
+                                              <span className="text-[8px] font-bold text-white">UPLOAD</span>
+                                         </div>
+                                    )}
+                                </div>
+                            )}
+                            {isUploadingLogo && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Save/Cancel Controls for Admin */}
+                        {pendingFile && !isUploadingLogo && (
+                            <div className="absolute -bottom-8 flex gap-2 animate-fade-in">
+                                <button 
+                                    onClick={handleSaveLogo}
+                                    className="p-1 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-500 hover:scale-110 transition-all"
+                                    title="Save Logo"
+                                >
+                                    <CheckCircleIcon className="w-4 h-4" />
+                                </button>
+                                 <button 
+                                    onClick={handleCancelLogo}
+                                    className="p-1 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-500 hover:scale-110 transition-all"
+                                    title="Cancel Upload"
+                                >
+                                    <XIcon className="w-4 h-4" />
+                                </button>
                             </div>
                         )}
                     </div>
 
-                    {/* Save/Cancel Controls for Admin */}
-                    {pendingFile && !isUploadingLogo && (
-                        <div className="absolute -bottom-8 flex gap-2 animate-fade-in">
-                            <button 
-                                onClick={handleSaveLogo}
-                                className="p-1 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-500 hover:scale-110 transition-all"
-                                title="Save Logo"
-                            >
-                                <CheckCircleIcon className="w-4 h-4" />
-                            </button>
-                             <button 
-                                onClick={handleCancelLogo}
-                                className="p-1 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-500 hover:scale-110 transition-all"
-                                title="Cancel Upload"
-                            >
-                                <XIcon className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
-                </div>
+                    {/* Auth Section */}
+                    <div className="z-10 relative">
+                      <Auth 
+                        user={user} 
+                        onLogin={handleLogin} 
+                        onLogout={handleLogout} 
+                        setActiveView={setActiveView} 
+                        modalState={authModalState}
+                        setModalState={setAuthModalState}
+                      />
+                    </div>
+                 </div>
 
-                {/* Auth Section */}
-                <div className="z-10 relative">
-                  <Auth 
-                    user={user} 
-                    onLogin={handleLogin} 
-                    onLogout={handleLogout} 
-                    setActiveView={setActiveView} 
-                    modalState={authModalState}
-                    setModalState={setAuthModalState}
-                  />
-                </div>
+                 {/* Navigation Bar */}
+                 <nav className="max-w-5xl mx-auto bg-white border-b border-x border-gray-200 shadow-lg rounded-b-xl mb-4 relative z-20">
+                   <div className="flex justify-start sm:justify-around p-2 space-x-1 overflow-x-auto no-scrollbar">
+                     <NavItem view="DASHBOARD" label="Home" icon={<HomeIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="WEATHER" label="Weather" icon={<CloudIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="MARKETPLACE" label="Marketplace" icon={<ShoppingCartIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="RENTAL" label="Rental" icon={<TractorIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="WALLET" label="Wallet" icon={<WalletIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="FORUM" label="Forum" icon={<UsersIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="ADVISORY" label="Advisory" icon={<SproutIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="DIAGNOSIS" label="Diagnose" icon={<BugIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="PRICES" label="Prices" icon={<TagIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                     <NavItem view="ADMIN" label="Admin" icon={<ShieldCheckIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
+                   </div>
+                 </nav>
              </div>
 
-             {/* Navigation Bar */}
-             <nav className="max-w-5xl mx-auto bg-white border-b border-x border-gray-200 shadow-lg rounded-b-xl mb-8 relative z-20">
-               <div className="flex justify-start sm:justify-around p-2 space-x-1 overflow-x-auto no-scrollbar">
-                 <NavItem view="DASHBOARD" label="Home" icon={<HomeIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="WEATHER" label="Weather" icon={<CloudIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="MARKETPLACE" label="Marketplace" icon={<ShoppingCartIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="RENTAL" label="Rental" icon={<TractorIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="WALLET" label="Wallet" icon={<WalletIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="FORUM" label="Forum" icon={<UsersIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="ADVISORY" label="Advisory" icon={<SproutIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="DIAGNOSIS" label="Diagnose" icon={<BugIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="PRICES" label="Prices" icon={<TagIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-                 <NavItem view="ADMIN" label="Admin" icon={<ShieldCheckIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
-               </div>
-             </nav>
-
-          <div className="max-w-5xl mx-auto">
+          <div className="max-w-5xl mx-auto mt-4">
             {renderView()}
           </div>
         </main>
