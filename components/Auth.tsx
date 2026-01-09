@@ -258,10 +258,27 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
   };
 
   const handleLogoutClick = async () => {
+      const firstName = user?.name ? user.name.split(' ')[0] : 'User';
+      
+      // Determine respectful title based on common names
+      // This is a basic heuristic for personalization as gender is not explicitly stored
+      const lowerName = firstName.toLowerCase();
+      const femaleNames = [
+          'gifty', 'ama', 'akua', 'yaa', 'adwoa', 'abena', 'afia', 'esi', 'mary', 'sarah', 
+          'elizabeth', 'grace', 'joyce', 'esther', 'helen', 'felicia', 'linda', 'rita', 
+          'gladys', 'beatrice', 'patience', 'victoria', 'anita', 'millicent', 'mercy', 
+          'comfort', 'faustina', 'doris', 'evelyn', 'regina', 'rebecca', 'florence', 
+          'juliana', 'leticia', 'vivian', 'margaret', 'abigail', 'sandra', 'rose', 'bernice',
+          'lydia', 'mavis', 'nancy', 'ophelia', 'theresa', 'veronica', 'winifred', 'kate'
+      ];
+      
+      // Default to Mr. unless name is identified as typically female in this context
+      const title = femaleNames.includes(lowerName) ? 'Ms.' : 'Mr.';
+
       try {
         await supabase.auth.signOut();
         onLogout();
-        addNotification({ type: 'auth', title: 'Logged Out', message: 'See you soon!', view: 'DASHBOARD' });
+        addNotification({ type: 'auth', title: 'Logged Out', message: `See you soon ${title} ${firstName}!`, view: 'DASHBOARD' });
       } catch (error) {
         console.error("Logout error", error);
       }
