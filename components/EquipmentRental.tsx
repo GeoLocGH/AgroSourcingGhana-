@@ -191,7 +191,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       try {
           const inquiryData = {
               user_id: user?.uid || null,
-              item_id: inquiryItem.id,
+              item_id: String(inquiryItem.id), // Ensure ID is a string
               item_type: 'equipment',
               name: inquiryForm.name,
               email: inquiryForm.email,
@@ -207,8 +207,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           addNotification({ type: 'rental', title: 'Inquiry Sent', message: 'The owner will contact you shortly.', view: 'RENTAL' });
       } catch (err: any) {
           console.error("Error sending inquiry:", err);
-          // Fixed: Show the specific error message from the database
-          addNotification({ type: 'rental', title: 'Error', message: `Failed to send inquiry: ${err.message || 'Unknown error'}`, view: 'RENTAL' });
+          const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+          addNotification({ type: 'rental', title: 'Error', message: `Failed to send inquiry: ${errorMessage}`, view: 'RENTAL' });
       } finally {
           setIsSubmitting(false);
       }
@@ -224,7 +224,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           return;
       }
       
-      // Fixed: Prevent chat if item owner ID is missing (legacy data)
       if (!item.user_id) {
           addNotification({ type: 'rental', title: 'Unavailable', message: 'Owner information is missing for this item.', view: 'RENTAL' });
           return;
@@ -281,8 +280,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           setCurrentMessage('');
       } catch (err: any) {
           console.error("Chat Error:", err.message);
-          // Fixed: Show specific error message
-          addNotification({ type: 'rental', title: 'Error', message: `Failed to send: ${err.message}`, view: 'RENTAL' });
+          const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+          addNotification({ type: 'rental', title: 'Error', message: `Failed to send: ${errorMessage}`, view: 'RENTAL' });
       } finally {
           setIsSending(false);
       }
@@ -334,7 +333,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           // 2. Upload Logic matching requirements
           if (itemImageFile) {
               const fileExt = itemImageFile.name.split('.').pop();
-              // Using timestamp to ensure uniqueness while keeping it traceable, compatible with user request structure
+              // Using timestamp to ensure uniqueness while keeping it traceable
               const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
               const filePath = `rental/${fileName}`;
 

@@ -18,6 +18,9 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Image Magnification State
+  const [magnifiedImage, setMagnifiedImage] = useState<string | null>(null);
 
   // Form states
   const [newPostTitle, setNewPostTitle] = useState('');
@@ -254,7 +257,13 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                     {selectedPost.images && selectedPost.images.length > 0 && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-4">
                             {selectedPost.images.map((img, idx) => (
-                                <img key={idx} src={img} alt={`Attachment ${idx}`} className="rounded-lg border border-gray-200 w-full h-48 object-cover" />
+                                <img 
+                                    key={idx} 
+                                    src={img} 
+                                    alt={`Attachment ${idx}`} 
+                                    className="rounded-lg border border-gray-200 w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => setMagnifiedImage(img)}
+                                />
                             ))}
                         </div>
                     )}
@@ -279,9 +288,15 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                                     </div>
                                     <p className="text-gray-700 text-sm">{r.content}</p>
                                     {r.images && r.images.length > 0 && (
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex gap-2 mt-2 flex-wrap">
                                             {r.images.map((img, i) => (
-                                                <img key={i} src={img} className="w-16 h-16 rounded object-cover border" alt="Reply attachment" />
+                                                <img 
+                                                    key={i} 
+                                                    src={img} 
+                                                    className="w-16 h-16 rounded object-cover border cursor-pointer hover:scale-105 transition-transform" 
+                                                    alt="Reply attachment" 
+                                                    onClick={() => setMagnifiedImage(img)}
+                                                />
                                             ))}
                                         </div>
                                     )}
@@ -392,6 +407,24 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                     </div>
                 </div>
             </form>
+        )}
+
+        {/* Image Lightbox Modal */}
+        {magnifiedImage && (
+            <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 animate-fade-in" onClick={() => setMagnifiedImage(null)}>
+                <button 
+                    className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                    onClick={() => setMagnifiedImage(null)}
+                >
+                    <XIcon className="w-10 h-10" />
+                </button>
+                <img 
+                    src={magnifiedImage} 
+                    alt="Full View" 
+                    className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" 
+                    onClick={(e) => e.stopPropagation()} // Prevent close on image click
+                />
+            </div>
         )}
     </Card>
   );
