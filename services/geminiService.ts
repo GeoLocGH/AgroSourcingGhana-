@@ -52,6 +52,22 @@ export const checkWeatherAlerts = async (location: GeoLocation | string): Promis
     });
 };
 
+export const getFarmingTip = async (location: GeoLocation | string): Promise<string> => {
+    const locString = typeof location === 'string'
+        ? location
+        : `${location.latitude}, ${location.longitude}`;
+
+    const prompt = `Provide one specific, actionable farming tip for a farmer in ${locString} for today, considering the typical climate or current season in Ghana. Keep it under 20 words.`;
+
+    return retryWithBackoffHelper(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+        });
+        return response.text || "Inspect your crops for early signs of pests.";
+    });
+};
+
 export const getLocalWeather = async (location: GeoLocation | string): Promise<ServiceResponse<WeatherForecast[]>> => {
     const locString = typeof location === 'string' 
         ? location 

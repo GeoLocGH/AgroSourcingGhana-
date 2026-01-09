@@ -85,8 +85,7 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
 
         const newPostData = {
             author: user?.name || 'Guest Farmer', 
-            user_id: user?.uid || null, 
-            owner_id: user?.uid || null, // Add legacy field to satisfy DB constraints
+            user_id: user?.uid || null,
             created_at: new Date().toISOString(),
             title: newPostTitle,
             content: newPostContent,

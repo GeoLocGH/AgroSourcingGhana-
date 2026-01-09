@@ -4,7 +4,7 @@ import Card from './common/Card';
 import { CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, AlertTriangleIcon, HarvesterIcon, WalletIcon, TractorIcon, Spinner, UploadIcon, BanknotesIcon, SearchIcon, GridIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useGeolocation } from '../hooks/useGeolocation';
-import { checkWeatherAlerts } from '../services/geminiService';
+import { checkWeatherAlerts, getFarmingTip } from '../services/geminiService';
 import { getWalletBalance } from '../services/paymentService';
 import type { View, User } from '../types';
 import { uploadUserFile } from '../services/storageService';
@@ -25,6 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   const [inputLocation, setInputLocation] = useState('');
 
   const [liveAlert, setLiveAlert] = useState<string>('Initializing global weather scan...');
+  const [dailyTip, setDailyTip] = useState<string>('Loading daily insight...');
   const [isFetchingAlerts, setIsFetchingAlerts] = useState(false);
   
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -73,8 +74,15 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
         })
         .catch(() => setLiveAlert('Unable to connect to global weather services.'))
         .finally(() => setIsFetchingAlerts(false));
+
+      // Fetch Daily Tip
+      getFarmingTip(effectiveLocation)
+        .then(setDailyTip)
+        .catch(() => setDailyTip("Review your irrigation schedule today."));
+
     } else if (geoError) {
         setLiveAlert('Location access failed. Please enter location manually below.');
+        setDailyTip('Enable location or enter city to get localized tips.');
     } else {
         setLiveAlert('Waiting for location access to scan for alerts...');
     }
@@ -240,6 +248,15 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
             ) : (
                 <p className="mt-2 text-sm text-gray-600 font-medium">Log in to view balance</p>
             )}
+        </Card>
+
+        {/* Daily Tip Card */}
+        <Card className="flex flex-col items-start p-6 hover:-translate-y-1 !border transition-colors bg-green-50 border-green-100 hover:border-green-300">
+            <div className="p-3 rounded-full bg-green-200 text-green-700 mb-3">
+                <SproutIcon className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-800">Daily Tip</h3>
+            <p className="mt-2 text-sm text-gray-700 font-medium italic">"{dailyTip}"</p>
         </Card>
 
          <Card className="sm:col-span-2 lg:col-span-3 !bg-red-50 !border !border-red-200 hover:!border-red-300">

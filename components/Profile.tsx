@@ -42,12 +42,16 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   const [likedItems, setLikedItems] = useState<MarketplaceItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
+  // Item Details Modal State (For Liked Items)
+  const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
   // Inbox State
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(false);
   
-  // Chat Modal State (Duplicate logic for simplicity in Profile context)
+  // Chat Modal State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeChatContext, setActiveChatContext] = useState<{itemId: string, otherUserId: string, title: string} | null>(null);
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
@@ -71,7 +75,17 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Initial load effect
   useEffect(() => {
+    // Check if we should open a specific tab
+    const requestedTab = sessionStorage.getItem('profile_tab');
+    if (requestedTab) {
+        if (['DETAILS', 'LISTINGS', 'LIKES', 'FILES', 'TRANSACTIONS', 'INBOX'].includes(requestedTab)) {
+            setActiveTab(requestedTab as any);
+        }
+        sessionStorage.removeItem('profile_tab');
+    }
+
     if (user && user.uid) {
       setFormData({
         name: user.name || '',
@@ -87,6 +101,38 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       fetchInbox();
     }
   }, [user]);
+
+  // Realtime subscription for Listings
+  useEffect(() => {
+      if (!user?.uid) return;
+
+      const subscription = supabase
+        .channel('profile_listings_update')
+        .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'marketplace', 
+            filter: `user_id=eq.${user.uid}` 
+        }, fetchMyProperties)
+        .subscribe();
+
+      return () => { subscription.unsubscribe(); };
+  }, [user?.uid]);
+
+  // Slideshow Logic for Details Modal
+  useEffect(() => {
+      if (selectedItem) {
+          setCurrentImageIndex(0);
+      }
+  }, [selectedItem]);
+
+  useEffect(() => {
+      if (!selectedItem?.image_urls || selectedItem.image_urls.length <= 1) return;
+      const interval = setInterval(() => {
+          setCurrentImageIndex(prev => (prev + 1) % selectedItem.image_urls!.length);
+      }, 3000);
+      return () => clearInterval(interval);
+  }, [selectedItem]);
 
   // --- Data Fetching ---
 
@@ -120,15 +166,28 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       if (!user || !user.uid) return;
       setLoadingListings(true);
       try {
-          // Robust Fetch: Checks both 'user_id' (new schema) OR 'owner_id' (legacy schema)
-          // This ensures Gifty sees her old items immediately even before SQL migration completes perfectly
-          const { data: marketData, error: marketError } = await supabase
+          let marketData: MarketplaceItem[] = [];
+          
+          const { data, error } = await supabase
             .from('marketplace')
             .select('*')
-            .or(`user_id.eq.${user.uid},owner_id.eq.${user.uid}`);
+            .eq('user_id', user.uid);
             
-          if (marketError) throw marketError;
-          setMyListings((marketData as MarketplaceItem[]) || []);
+          if (!error) {
+              marketData = (data as MarketplaceItem[]) || [];
+          } else {
+              console.warn("Falling back to owner_id fetch", error);
+              const { data: legacyData, error: legacyError } = await supabase
+                .from('marketplace')
+                .select('*')
+                .eq('owner_id', user.uid);
+                
+              if (!legacyError) {
+                  marketData = (legacyData as MarketplaceItem[]) || [];
+              }
+          }
+
+          setMyListings(marketData);
 
           const { data: equipData } = await supabase.from('equipment').select('*').eq('user_id', user.uid);
           setMyEquipment((equipData as EquipmentItem[]) || []);
@@ -162,7 +221,6 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       if (!user || !user.uid) return;
       setLoadingInbox(true);
       try {
-          // 1. Fetch Inquiries (Emails)
           const { data: inqData } = await supabase
             .from('inquiries')
             .select('*')
@@ -170,19 +228,15 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
             .order('created_at', { ascending: false });
           setInquiries((inqData as Inquiry[]) || []);
 
-          // 2. Fetch Chat Sessions (Group by item_id + sender_id)
-          // Since we can't easily do complex GROUP BY with latest message in standard Supabase client without views/functions,
-          // we'll fetch recent chats where receiver is user, and client-side group.
           const { data: chatData } = await supabase
              .from('chats')
              .select('*')
              .eq('receiver_id', user.uid)
              .order('created_at', { ascending: false })
-             .limit(50); // Fetch last 50 messages to form recent sessions
+             .limit(50);
 
           if (chatData) {
               const sessionsMap = new Map<string, ChatSession>();
-              
               chatData.forEach((msg: any) => {
                   const key = `${msg.item_id}_${msg.sender_id}`;
                   if (!sessionsMap.has(key)) {
@@ -284,6 +338,22 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       });
       setIsChatOpen(true);
       loadChatMessages(session.item_id, session.sender_id);
+  };
+
+  const handleOpenItemChat = (item: MarketplaceItem) => {
+      if (!user?.uid) return;
+      if (item.user_id === user.uid) {
+          addNotification({ type: 'market', title: 'Oops', message: 'This is your own item.', view: 'PROFILE' });
+          return;
+      }
+      setActiveChatContext({
+          itemId: item.id,
+          otherUserId: item.user_id,
+          title: item.title
+      });
+      setSelectedItem(null); // Close details modal
+      setIsChatOpen(true);
+      loadChatMessages(item.id, item.user_id);
   };
 
   const loadChatMessages = async (itemId: string, otherUserId: string) => {
@@ -391,6 +461,12 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                         </div>
                         <div className="mt-6 w-full space-y-2">
                             <Button onClick={() => setIsEditing(true)} className="w-full text-sm bg-blue-600 hover:bg-blue-700">Edit Profile</Button>
+                            {/* MY STORE BUTTON: Added for sellers/farmers to quickly access listings */}
+                            {(user.type === 'seller' || user.type === 'farmer' || user.type === 'admin') && (
+                                <Button onClick={() => setActiveTab('LISTINGS')} className="w-full text-sm bg-green-600 hover:bg-green-700">
+                                    <ShoppingCartIcon className="w-4 h-4 mr-2" /> My Store
+                                </Button>
+                            )}
                         </div>
                        </>
                    ) : (
@@ -435,7 +511,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                   <div className="flex border-b overflow-x-auto no-scrollbar">
                       <button onClick={() => setActiveTab('DETAILS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'DETAILS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Account</button>
                       <button onClick={() => setActiveTab('INBOX')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'INBOX' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Inbox</button>
-                      <button onClick={() => setActiveTab('LISTINGS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LISTINGS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>My Listings</button>
+                      <button onClick={() => setActiveTab('LISTINGS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LISTINGS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>My Store</button>
                       <button onClick={() => setActiveTab('LIKES')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LIKES' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Liked</button>
                       <button onClick={() => setActiveTab('FILES')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'FILES' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Files</button>
                       <button onClick={() => setActiveTab('TRANSACTIONS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'TRANSACTIONS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Transactions</button>
@@ -662,8 +738,8 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                           <div className="space-y-3">
                               {loadingLikes ? <p className="text-center text-gray-500 py-4">Loading favorites...</p> : likedItems.length > 0 ? (
                                   likedItems.map(item => (
-                                      <div key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
-                                          <img src={item.image_urls?.[0] || 'https://placehold.co/50'} alt={item.title} className="w-12 h-12 rounded object-cover border" />
+                                      <div key={item.id} onClick={() => setSelectedItem(item)} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group">
+                                          <img src={item.image_urls?.[0] || 'https://placehold.co/50'} alt={item.title} className="w-12 h-12 rounded object-cover border transition-transform group-hover:scale-105" />
                                           <div className="flex-grow">
                                               <p className="font-bold text-gray-900">{item.title}</p>
                                               <p className="text-sm text-green-700">GHS {item.price.toFixed(2)}</p>
@@ -680,6 +756,100 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
               </div>
           </div>
       </div>
+
+      {/* Item Details Modal (For Liked Items) */}
+      {selectedItem && (
+           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedItem(null)}>
+               <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => { e.stopPropagation(); /* Prevent close on card click */ }}>
+                   <div className="flex justify-between items-start mb-4">
+                       <h3 className="text-xl font-bold text-gray-800">{selectedItem.title}</h3>
+                       <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   
+                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200 group">
+                       {selectedItem.image_urls && selectedItem.image_urls.length > 0 ? (
+                           selectedItem.image_urls.map((url, idx) => (
+                               <img 
+                                   key={idx}
+                                   src={url} 
+                                   alt={`${selectedItem.title} - view ${idx + 1}`}
+                                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${idx === currentImageIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                               />
+                           ))
+                       ) : (
+                           <img 
+                               src='https://placehold.co/600x400?text=No+Image' 
+                               alt={selectedItem.title}
+                               className="w-full h-full object-cover"
+                           />
+                       )}
+                       
+                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
+                           {selectedItem.location_name || 'Location Unknown'}
+                       </div>
+
+                       {/* Pagination Dots for Slideshow */}
+                       {selectedItem.image_urls && selectedItem.image_urls.length > 1 && (
+                           <div className="absolute bottom-2 right-2 flex gap-1 z-20">
+                               {selectedItem.image_urls.map((_, idx) => (
+                                   <div 
+                                     key={idx} 
+                                     className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${idx === currentImageIndex ? 'bg-white' : 'bg-white/40'}`} 
+                                   />
+                               ))}
+                           </div>
+                       )}
+                   </div>
+
+                   <div className="space-y-4 text-gray-800">
+                       <div className="flex justify-between items-center border-b pb-3">
+                           <span className="text-2xl font-bold text-green-700">GHS {selectedItem.price.toFixed(2)}</span>
+                           <div className="flex flex-col items-end">
+                               <span className="text-xs text-gray-500">Category</span>
+                               <span className="font-medium bg-gray-100 px-2 py-0.5 rounded">{selectedItem.category}</span>
+                           </div>
+                       </div>
+
+                       <div>
+                           <h4 className="font-bold text-sm text-gray-700 mb-1">Description</h4>
+                           <div className="bg-gray-50 p-3 rounded border border-gray-100 text-sm text-gray-600 space-y-2">
+                               <p className="leading-relaxed whitespace-pre-wrap">
+                                   <span className="font-bold text-gray-800 block mb-1">Usage: </span>
+                                   {selectedItem.usage_instructions || 'No specific usage instructions provided.'}
+                               </p>
+                               {selectedItem.storage_recommendations && (
+                                   <p className="leading-relaxed whitespace-pre-wrap border-t border-gray-200 pt-2 mt-2">
+                                       <span className="font-bold text-gray-800 block mb-1">Storage: </span>
+                                       {selectedItem.storage_recommendations}
+                                   </p>
+                               )}
+                           </div>
+                       </div>
+
+                       <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                           <h4 className="font-bold text-sm text-blue-900 mb-2 flex items-center">
+                               Seller Information
+                               {selectedItem.merchant_id && <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />}
+                           </h4>
+                           <div className="grid grid-cols-2 gap-4 text-sm">
+                               <div>
+                                   <span className="block text-xs text-blue-700 uppercase">Name</span>
+                                   <span className="font-medium text-blue-900">{selectedItem.seller_name}</span>
+                               </div>
+                               <div>
+                                   <span className="block text-xs text-blue-700 uppercase">Phone</span>
+                                   <span className="font-medium text-blue-900">{selectedItem.seller_phone || 'Hidden'}</span>
+                               </div>
+                           </div>
+                       </div>
+
+                       <Button onClick={() => handleOpenItemChat(selectedItem)} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
+                           <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
+                       </Button>
+                   </div>
+               </Card>
+           </div>
+      )}
 
       {/* Profile Chat Modal */}
       {isChatOpen && activeChatContext && (

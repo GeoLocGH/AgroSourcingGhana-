@@ -331,7 +331,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
               location_lng: newItem.location_lng,
               image_urls: imageUrl ? [imageUrl] : [],
               user_id: user.uid,
-              owner_id: user.uid, // Add legacy field to satisfy constraints if migration hasn't run
               seller_name: user.name,
               seller_email: user.email,
               seller_phone: user.phone,
@@ -412,6 +411,15 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
   const isOwner = (item: MarketplaceItem) => user?.uid === item.user_id;
 
+  const goToMyStore = () => {
+      if(!user) {
+          onRequireLogin();
+          return;
+      }
+      sessionStorage.setItem('profile_tab', 'LISTINGS');
+      setActiveView('PROFILE');
+  }
+
   return (
     <div className="space-y-6">
        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -424,13 +432,20 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                    <p className="text-gray-600">Buy and sell agricultural products.</p>
                </div>
            </div>
-           <Button onClick={() => { 
-               if(!user) { onRequireLogin(); return; }
-               resetForm(); 
-               setShowAddModal(true); 
-           }}>
-               <PlusIcon className="w-5 h-5 mr-2" /> Sell Item
-           </Button>
+           <div className="flex gap-2">
+               {user && (
+                   <Button onClick={goToMyStore} className="bg-white !text-purple-700 border border-purple-200 hover:bg-purple-50 shadow-sm">
+                       <ShoppingCartIcon className="w-5 h-5 mr-2" /> My Store
+                   </Button>
+               )}
+               <Button onClick={() => { 
+                   if(!user) { onRequireLogin(); return; }
+                   resetForm(); 
+                   setShowAddModal(true); 
+               }}>
+                   <PlusIcon className="w-5 h-5 mr-2" /> Sell Item
+               </Button>
+           </div>
        </div>
 
        {/* Search & Filter */}
@@ -644,7 +659,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                <label className="text-sm font-medium text-gray-700 block mb-1">Category</label>
                                <select value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value as any})} className="w-full border p-2 rounded bg-white text-gray-900">
                                    {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
-                               </select>
+                                </select>
                            </div>
                            <div>
                                <label className="text-sm font-medium text-gray-700 block mb-1">Price (GHS)</label>

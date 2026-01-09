@@ -385,7 +385,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               image_url: imageUrl,
               owner: user.name,
               user_id: userId,
-              owner_id: userId, // Add legacy field to satisfy database constraints
               available: true,
               created_at: new Date().toISOString()
           };
