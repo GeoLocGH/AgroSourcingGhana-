@@ -6,26 +6,35 @@ import type { AdvisoryStage, GroundingSource } from '../types';
 import { Crop } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { Spinner, TimelineIcon, SearchIcon, AlertTriangleIcon, SproutIcon } from './common/icons';
+import { Spinner, TimelineIcon, SearchIcon, AlertTriangleIcon, SproutIcon, GridIcon } from './common/icons';
 
 const CropAdvisory: React.FC = () => {
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
   const [selectedCrop, setSelectedCrop] = useState<Crop>(Crop.Maize);
   const [plantingDate, setPlantingDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [manualLocation, setManualLocation] = useState('');
+  
   const [advisory, setAdvisory] = useState<AdvisoryStage[]>([]);
   const [sources, setSources] = useState<GroundingSource[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleGenerate = async () => {
-    if (!location) return;
+    // Effective location: GPS or Manual
+    const loc = manualLocation || location;
+    
+    if (!loc) {
+        setError("Please enable GPS or enter a location manually.");
+        return;
+    }
+    
     setLoading(true);
     setError('');
     setAdvisory([]);
     setSources([]);
 
     try {
-      const response = await getAdvisory(selectedCrop, plantingDate, location);
+      const response = await getAdvisory(selectedCrop, plantingDate, loc);
       setAdvisory(response.data);
       setSources(response.sources);
     } catch (err) {
@@ -35,15 +44,6 @@ const CropAdvisory: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // Auto-generate if location loads and no data yet
-  useEffect(() => {
-    if (location && !loading && advisory.length === 0 && !error) {
-       // Optional: Auto-load or wait for user. Let's wait for user to confirm crop/date usually, 
-       // but for smooth UX we can just show the "Generate" button state or auto-load defaults.
-       // We'll leave it manual to let user pick date/crop first.
-    }
-  }, [location]);
 
   return (
     <Card>
@@ -63,7 +63,7 @@ const CropAdvisory: React.FC = () => {
           <select
             value={selectedCrop}
             onChange={(e) => setSelectedCrop(e.target.value as Crop)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
           >
             {Object.values(Crop).map((c) => (
               <option key={c} value={c}>{c}</option>
@@ -76,17 +76,35 @@ const CropAdvisory: React.FC = () => {
             type="date"
             value={plantingDate}
             onChange={(e) => setPlantingDate(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
           />
         </div>
+        
+        {/* Manual Location Input - Appears if GPS fails or Manual is used */}
+        {(!location || manualLocation) && (
+            <div className="md:col-span-2 animate-fade-in">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Location (Manual Override)</label>
+                 <div className="flex gap-2">
+                     <div className="relative flex-grow">
+                        <GridIcon className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
+                        <input 
+                            type="text"
+                            value={manualLocation}
+                            onChange={(e) => setManualLocation(e.target.value)}
+                            placeholder="Enter your farm's town or region..."
+                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
+                        />
+                     </div>
+                 </div>
+                 {geoError && <p className="text-xs text-red-500 mt-1">{geoError} - using manual input.</p>}
+            </div>
+        )}
       </div>
-
-      {geoError && <div className="mb-4 text-red-600 bg-red-50 p-3 rounded">{geoError}</div>}
 
       <div className="flex justify-end mb-6">
         <Button 
             onClick={handleGenerate} 
-            disabled={loading || geoLoading || !location} 
+            disabled={loading || (geoLoading && !manualLocation) || (!location && !manualLocation)} 
             isLoading={loading}
             className="w-full md:w-auto"
         >

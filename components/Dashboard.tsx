@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Card from './common/Card';
-import { CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, AlertTriangleIcon, HarvesterIcon, WalletIcon, TractorIcon, Spinner, UploadIcon, BanknotesIcon } from './common/icons';
+import { CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, AlertTriangleIcon, HarvesterIcon, WalletIcon, TractorIcon, Spinner, UploadIcon, BanknotesIcon, SearchIcon, GridIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { checkWeatherAlerts } from '../services/geminiService';
@@ -9,6 +9,7 @@ import { getWalletBalance } from '../services/paymentService';
 import type { View, User } from '../types';
 import { uploadUserFile } from '../services/storageService';
 import { supabase } from '../services/supabase';
+import Button from './common/Button';
 
 interface DashboardProps {
   setActiveView: (view: View) => void;
@@ -17,7 +18,12 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   const { addNotification } = useNotifications();
-  const { location } = useGeolocation();
+  const { location, error: geoError } = useGeolocation();
+  
+  // Manual Location Handling
+  const [manualLocation, setManualLocation] = useState('');
+  const [inputLocation, setInputLocation] = useState('');
+
   const [liveAlert, setLiveAlert] = useState<string>('Initializing global weather scan...');
   const [isFetchingAlerts, setIsFetchingAlerts] = useState(false);
   
@@ -45,11 +51,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   }, []);
 
   useEffect(() => {
-    if (location) {
+    // Determine the effective location: GPS object or Manual String
+    const effectiveLocation = manualLocation ? manualLocation : location;
+
+    if (effectiveLocation) {
       setIsFetchingAlerts(true);
       setLiveAlert('Fetching data from trusted global meteorological sources...');
       
-      checkWeatherAlerts(location)
+      checkWeatherAlerts(effectiveLocation)
         .then((alertText) => {
           setLiveAlert(alertText);
           const lower = alertText.toLowerCase();
@@ -64,10 +73,12 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
         })
         .catch(() => setLiveAlert('Unable to connect to global weather services.'))
         .finally(() => setIsFetchingAlerts(false));
+    } else if (geoError) {
+        setLiveAlert('Location access failed. Please enter location manually below.');
     } else {
         setLiveAlert('Waiting for location access to scan for alerts...');
     }
-  }, [location]);
+  }, [location, manualLocation, geoError]); // Re-run when GPS comes in or user sets manual
 
   useEffect(() => {
       if (user?.uid) {
@@ -76,6 +87,13 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
           setWalletBalance(0);
       }
   }, [user]);
+
+  const handleManualSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if(inputLocation.trim()) {
+          setManualLocation(inputLocation);
+      }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -94,7 +112,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
     setIsUploading(true);
     try {
         const result = await uploadUserFile(user.uid, file, 'admin-logo', '', 'Dashboard Widget Logo');
-        // Fix: Changed download_url to file_url
         const url = result.file_url;
         
         await supabase.from('settings').upsert({ id: 'dashboard', value: { logoUrl: url } });
@@ -237,9 +254,28 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
                           {isFetchingAlerts && <Spinner />}
                       </h3>
                       <p className="text-sm text-red-600 font-medium mb-1">Live Updates from Trusted Internet Sources</p>
-                      <div className="bg-white/80 p-3 rounded-md border border-red-100">
-                          <p className="text-gray-800 font-semibold">{liveAlert}</p>
-                      </div>
+                      
+                      {(!location && !manualLocation) ? (
+                           <div className="mt-2">
+                                <p className="text-gray-800 font-semibold mb-2">{liveAlert}</p>
+                                {/* Manual Fallback Input */}
+                                <form onSubmit={handleManualSubmit} className="flex gap-2 max-w-sm">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Enter your town/city..." 
+                                        value={inputLocation}
+                                        onChange={e => setInputLocation(e.target.value)}
+                                        className="flex-grow px-3 py-1.5 border border-red-300 rounded text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500"
+                                    />
+                                    <Button type="submit" className="text-xs py-1.5 bg-red-600 hover:bg-red-700">Check</Button>
+                                </form>
+                           </div>
+                      ) : (
+                          <div className="bg-white/80 p-3 rounded-md border border-red-100 flex justify-between items-center">
+                              <p className="text-gray-800 font-semibold">{liveAlert}</p>
+                              {manualLocation && <button onClick={() => setManualLocation('')} className="text-xs text-blue-600 underline ml-2">Clear Manual Location</button>}
+                          </div>
+                      )}
                   </div>
               </div>
           </div>

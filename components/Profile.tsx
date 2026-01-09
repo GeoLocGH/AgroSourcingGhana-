@@ -120,7 +120,14 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       if (!user || !user.uid) return;
       setLoadingListings(true);
       try {
-          const { data: marketData } = await supabase.from('marketplace').select('*').eq('user_id', user.uid);
+          // Robust Fetch: Checks both 'user_id' (new schema) OR 'owner_id' (legacy schema)
+          // This ensures Gifty sees her old items immediately even before SQL migration completes perfectly
+          const { data: marketData, error: marketError } = await supabase
+            .from('marketplace')
+            .select('*')
+            .or(`user_id.eq.${user.uid},owner_id.eq.${user.uid}`);
+            
+          if (marketError) throw marketError;
           setMyListings((marketData as MarketplaceItem[]) || []);
 
           const { data: equipData } = await supabase.from('equipment').select('*').eq('user_id', user.uid);
@@ -473,7 +480,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                                     <p className="text-sm text-gray-600 truncate max-w-xs">{chat.last_message}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="text-xs text-gray-400">{new Date(chat.last_time).toLocaleDateString()}</span>
+                                                    <span className="text-xs text-gray-400">{new Date(chat.last_time).toLocaleDateString()}</p>
                                                     <Button className="ml-2 text-xs py-1 px-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-none shadow-none">Reply</Button>
                                                 </div>
                                             </div>

@@ -71,18 +71,18 @@ export const useGeolocation = (): GeolocationState => {
     };
 
     // Strategy: 
-    // 1. Try High Accuracy (GPS) with 20s timeout (increased from 10s).
-    // 2. If Timeout or Unavailable, fallback to Low Accuracy (Network) with 20s timeout.
+    // 1. Try High Accuracy (GPS) with 5s timeout (Fail fast to try network).
+    // 2. If Timeout or Unavailable, fallback to Low Accuracy (Network) with 10s timeout.
     
     const highAccuracyOptions: PositionOptions = {
         enableHighAccuracy: true,
-        timeout: 20000, 
+        timeout: 5000, 
         maximumAge: 300000 // 5 minutes cache
     };
 
     const lowAccuracyOptions: PositionOptions = {
         enableHighAccuracy: false, // Network/Wifi location
-        timeout: 20000,
+        timeout: 10000,
         maximumAge: 600000 // 10 minutes cache
     };
 
@@ -90,7 +90,7 @@ export const useGeolocation = (): GeolocationState => {
         onSuccess,
         (err) => {
             if (!isMounted) return;
-            // Fallback logic
+            // Fallback logic for timeout or unavailable (not permission denied)
             if (err.code === err.TIMEOUT || err.code === err.POSITION_UNAVAILABLE) {
                 console.log("High accuracy failed, falling back to network location...");
                 navigator.geolocation.getCurrentPosition(

@@ -66,7 +66,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { addNotification } = useNotifications();
-  const { location } = useGeolocation();
+  const { location, error: geoError } = useGeolocation();
 
   const categories = ['All', 'Seeds', 'Fertilizers', 'Tools', 'Produce'];
 
@@ -296,7 +296,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
               location_name: prev.location_name || 'Current Location'
           }));
       } else {
-          alert("Location not available. Please enable GPS.");
+          const msg = geoError || "Location not available. Please enable GPS.";
+          alert(msg);
       }
   };
 
@@ -330,6 +331,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
               location_lng: newItem.location_lng,
               image_urls: imageUrl ? [imageUrl] : [],
               user_id: user.uid,
+              owner_id: user.uid, // Add legacy field to satisfy constraints if migration hasn't run
               seller_name: user.name,
               seller_email: user.email,
               seller_phone: user.phone,

@@ -32,8 +32,12 @@ function extractSources(response: any) {
     })).filter((s: any) => s.uri) || [];
 }
 
-export const checkWeatherAlerts = async (location: GeoLocation): Promise<string> => {
-    const prompt = `Check for active severe weather alerts for location: ${location.latitude}, ${location.longitude}. 
+export const checkWeatherAlerts = async (location: GeoLocation | string): Promise<string> => {
+    const locString = typeof location === 'string' 
+        ? location 
+        : `${location.latitude}, ${location.longitude}`;
+
+    const prompt = `Check for active severe weather alerts for location: ${locString}. 
     If none, say "No active severe weather alerts."`;
     
     return retryWithBackoffHelper(async () => {
@@ -137,8 +141,12 @@ export const diagnosePlant = async (base64Image: string, mimeType: string): Prom
     });
 };
 
-export const getAdvisory = async (crop: string, plantingDate: string, location: GeoLocation): Promise<ServiceResponse<AdvisoryStage[]>> => {
-    const prompt = `Create a crop advisory for ${crop} planted on ${plantingDate} at location ${location.latitude}, ${location.longitude}. Return JSON.`;
+export const getAdvisory = async (crop: string, plantingDate: string, location: GeoLocation | string): Promise<ServiceResponse<AdvisoryStage[]>> => {
+    const locString = typeof location === 'string' 
+        ? location 
+        : `${location.latitude}, ${location.longitude}`;
+        
+    const prompt = `Create a crop advisory for ${crop} planted on ${plantingDate} at location ${locString}. Return JSON.`;
 
     return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
