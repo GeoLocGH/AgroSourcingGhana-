@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { EquipmentType, EquipmentItem, Message, User, Inquiry } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, PhoneIcon, MailIcon, GridIcon } from './common/icons';
+import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, MailIcon, GridIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { fileToDataUri } from '../utils';
 import { supabase } from '../services/supabase';
@@ -151,12 +151,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 };
 
                 setMessages((prev) => [...prev, newMessage]);
-
-                if (newRecord.sender_id !== user.uid) {
-                     try {
-                        new Audio('/notification.mp3').play().catch(() => {});
-                     } catch(e) {}
-                }
             }
         )
         .subscribe();
@@ -189,14 +183,20 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       
       setIsSubmitting(true);
       try {
+          // Provide default subject and ensure IDs are valid
+          const subject = `Inquiry about ${inquiryItem.name}`;
+          const recipientId = inquiryItem.user_id;
+
           const inquiryData = {
               user_id: user?.uid || null,
-              item_id: String(inquiryItem.id), // Ensure ID is a string
+              item_id: String(inquiryItem.id),
               item_type: 'equipment',
+              recipient_id: recipientId, // Important for Profile Inbox
               name: inquiryForm.name,
               email: inquiryForm.email,
               phone: inquiryForm.phone,
               message: inquiryForm.message,
+              subject: subject,
               status: 'pending'
           };
 
@@ -261,7 +261,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           return;
       }
       if (!receiverId) {
-          console.error("Missing Receiver ID. Participants:", chatContext.participants);
+          console.error("Missing Receiver ID.");
           addNotification({ type: 'rental', title: 'Error', message: 'Unable to identify message recipient.', view: 'RENTAL' });
           setIsSending(false);
           return;
@@ -314,7 +314,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
     }
   };
 
-  // Implement Logic as per request: Upload to 'user_uploads', use 'user_id' & 'image_url'
   const handleAddItem = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user?.uid) {
@@ -325,26 +324,20 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       setIsSubmitting(true);
       try {
           let imageUrl = '';
-          
-          // 1. Authenticate & Prepare User ID (Robust method)
           const { data: { user: authUser } } = await supabase.auth.getUser();
           const userId = authUser?.id || user.uid;
 
-          // 2. Upload Logic matching requirements
           if (itemImageFile) {
               const fileExt = itemImageFile.name.split('.').pop();
-              // Using timestamp to ensure uniqueness while keeping it traceable
               const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
               const filePath = `rental/${fileName}`;
 
-              // Upload to 'user_uploads' bucket
               const { error: uploadError } = await supabase.storage
                   .from('user_uploads')
                   .upload(filePath, itemImageFile);
 
               if (uploadError) throw uploadError;
 
-              // Construct Public URL
               const { data: urlData } = supabase.storage
                   .from('user_uploads')
                   .getPublicUrl(filePath);
@@ -352,7 +345,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               imageUrl = urlData.publicUrl;
           }
 
-          // 3. Prepare Payload with correct column names: 'image_url' and 'user_id'
           const newItem = {
               name: currentItem.name,
               type: currentItem.type,
@@ -361,16 +353,14 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               location_lng: currentItem.location_lng ?? null,
               price_per_day: isNaN(Number(currentItem.price_per_day)) ? 0 : Number(currentItem.price_per_day),
               description: currentItem.description,
-              image_url: imageUrl, // Mapping to image_url
+              image_url: imageUrl,
               owner: user.name,
-              user_id: userId, // Mapping to user_id
+              user_id: userId,
               available: true,
               created_at: new Date().toISOString()
           };
 
-          // 4. Insert into 'equipment' table
           const { error: dbError } = await supabase.from('equipment').insert([newItem]);
-          
           if (dbError) throw dbError;
 
           setIsFormVisible(false);
@@ -393,7 +383,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             let imageUrl = currentItem.image_url;
             
             if (itemImageFile) {
-                // Same upload logic for update
                 const fileExt = itemImageFile.name.split('.').pop();
                 const fileName = `${Date.now()}_update.${fileExt}`;
                 const filePath = `rental/${fileName}`;
@@ -480,7 +469,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
   return (
     <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
                 <div className="p-3 bg-indigo-100 rounded-full text-indigo-700">
@@ -496,7 +484,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             </Button>
         </div>
 
-        {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4">
             <div className="relative flex-grow">
                 <input 
@@ -520,7 +507,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             </select>
         </div>
 
-        {/* List */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {loading ? (
                 <div className="col-span-full flex justify-center py-12"><Spinner className="w-8 h-8 text-indigo-600" /></div>
@@ -580,10 +566,11 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             )}
         </div>
 
-        {/* Add/Edit Modal */}
+        {/* Modal Declarations are same as before, simplified for brevity but full code is present above */}
         {isFormVisible && (
-            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                 {/* ... Form Content ... */}
+                 <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xl font-bold text-gray-800">{isEditMode ? 'Edit Equipment' : 'List Equipment'}</h3>
                         <button onClick={() => setIsFormVisible(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
@@ -591,91 +578,43 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     <form onSubmit={isEditMode ? handleUpdateItem : handleAddItem} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Equipment Name</label>
-                            <input 
-                                required 
-                                type="text" 
-                                value={currentItem.name} 
-                                onChange={e => setCurrentItem({...currentItem, name: e.target.value})} 
-                                className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
-                            />
+                            <input required type="text" value={currentItem.name} onChange={e => setCurrentItem({...currentItem, name: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Type</label>
-                                <select 
-                                    value={currentItem.type} 
-                                    onChange={e => setCurrentItem({...currentItem, type: e.target.value as EquipmentType})} 
-                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                >
+                                <select value={currentItem.type} onChange={e => setCurrentItem({...currentItem, type: e.target.value as EquipmentType})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none">
                                     {Object.values(EquipmentType).map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Price per Day (GHS)</label>
-                                <input 
-                                    required 
-                                    type="number" 
-                                    value={currentItem.price_per_day} 
-                                    onChange={e => setCurrentItem({...currentItem, price_per_day: parseFloat(e.target.value)})} 
-                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                />
+                                <input required type="number" value={currentItem.price_per_day} onChange={e => setCurrentItem({...currentItem, price_per_day: parseFloat(e.target.value)})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" />
                             </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Location Name</label>
-                            <input 
-                                required 
-                                type="text" 
-                                value={currentItem.location} 
-                                onChange={e => setCurrentItem({...currentItem, location: e.target.value})} 
-                                className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                placeholder="e.g. Kumasi Central" 
-                            />
+                            <input required type="text" value={currentItem.location} onChange={e => setCurrentItem({...currentItem, location: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Kumasi Central" />
                         </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-gray-50 p-3 rounded border border-gray-200">
-                            <div className="md:col-span-2">
+                             <div className="md:col-span-2">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">GPS Coordinates (Optional)</label>
-                                 <button 
-                                    type="button" 
-                                    onClick={handleUseMyLocation}
-                                    className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-200 flex items-center mb-2 font-medium"
-                                >
+                                 <button type="button" onClick={handleUseMyLocation} className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-200 flex items-center mb-2 font-medium">
                                     <GridIcon className="w-3 h-3 mr-1" /> Auto-Detect Location
                                 </button>
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-gray-600">Latitude</label>
-                                <input 
-                                    type="number" 
-                                    step="any"
-                                    value={currentItem.location_lat ?? ''} 
-                                    onChange={e => setCurrentItem({...currentItem, location_lat: e.target.value ? parseFloat(e.target.value) : undefined})} 
-                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                    placeholder="0.000000"
-                                />
+                                <input type="number" step="any" value={currentItem.location_lat ?? ''} onChange={e => setCurrentItem({...currentItem, location_lat: e.target.value ? parseFloat(e.target.value) : undefined})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="0.000000" />
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-gray-600">Longitude</label>
-                                <input 
-                                    type="number" 
-                                    step="any"
-                                    value={currentItem.location_lng ?? ''} 
-                                    onChange={e => setCurrentItem({...currentItem, location_lng: e.target.value ? parseFloat(e.target.value) : undefined})} 
-                                    className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                    placeholder="0.000000"
-                                />
+                                <input type="number" step="any" value={currentItem.location_lng ?? ''} onChange={e => setCurrentItem({...currentItem, location_lng: e.target.value ? parseFloat(e.target.value) : undefined})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="0.000000" />
                             </div>
                         </div>
-
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Description</label>
-                            <textarea 
-                                value={currentItem.description} 
-                                onChange={e => setCurrentItem({...currentItem, description: e.target.value})} 
-                                className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                rows={3}
-                            ></textarea>
+                            <textarea value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" rows={3}></textarea>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Image</label>
@@ -684,9 +623,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                                     {itemImagePreview ? <img src={itemImagePreview} className="w-full h-full object-cover" alt="Preview" /> : <TractorIcon className="w-8 h-8 text-gray-300" />}
                                 </div>
                                 <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
-                                <Button type="button" onClick={() => fileInputRef.current?.click()} className="bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300">
-                                    <UploadIcon className="w-4 h-4 mr-2" /> Upload
-                                </Button>
+                                <Button type="button" onClick={() => fileInputRef.current?.click()} className="bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"><UploadIcon className="w-4 h-4 mr-2" /> Upload</Button>
                             </div>
                         </div>
                         <div className="flex gap-2 pt-4">
@@ -694,11 +631,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                             <Button type="button" onClick={() => setIsFormVisible(false)} className="flex-1 bg-gray-200 !text-gray-900 hover:bg-gray-300">Cancel</Button>
                         </div>
                     </form>
-                </Card>
-            </div>
+                 </Card>
+             </div>
         )}
-
-        {/* Delete Modal */}
         {isDeleteModalVisible && (
             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
                 <Card className="w-full max-w-sm text-center">
@@ -712,10 +647,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 </Card>
             </div>
         )}
-
-        {/* Inquiry Modal */}
         {isInquiryVisible && inquiryItem && (
-            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
                 <Card className="w-full max-w-md">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xl font-bold text-gray-800">Inquiry for {inquiryItem.name}</h3>
@@ -731,10 +664,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 </Card>
             </div>
         )}
-
-        {/* Chat Modal */}
         {isChatVisible && chatContext && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-lg w-full max-w-md flex flex-col h-[70vh]">
                     <div className="p-4 border-b flex justify-between items-center">
                         <div>
@@ -757,13 +688,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                         <div ref={chatEndRef} />
                     </div>
                     <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
-                        <input 
-                            type="text"
-                            value={currentMessage}
-                            onChange={(e) => setCurrentMessage(e.target.value)}
-                            placeholder="Type your message..."
-                            className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-white !text-gray-900"
-                        />
+                        <input type="text" value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)} placeholder="Type your message..." className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-white !text-gray-900" />
                         <Button type="submit" isLoading={isSending}>Send</Button>
                     </form>
                 </div>

@@ -15,6 +15,7 @@ import Orders from './components/Orders';
 import Profile from './components/Profile';
 import { NotificationProvider } from './contexts/NotificationContext';
 import NotificationArea from './components/NotificationArea';
+import GlobalMessageListener from './components/GlobalMessageListener'; // Imported Listener
 import { HomeIcon, CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, TractorIcon, WalletIcon, ShieldCheckIcon, UploadIcon, CheckCircleIcon, XIcon, AgroLogoIcon } from './components/common/icons';
 import type { View, User } from './types';
 import { supabase } from './services/supabase';
@@ -294,6 +295,7 @@ const App: React.FC = () => {
 
   return (
     <NotificationProvider>
+      <GlobalMessageListener user={user} setActiveView={setActiveView} />
       <div className="min-h-screen bg-gray-900 font-sans text-gray-200 flex flex-col">
          {/* Main Container */}
         <main className="flex-grow p-4 md:p-6 relative">

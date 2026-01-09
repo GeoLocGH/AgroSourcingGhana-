@@ -193,14 +193,18 @@ export interface EquipmentItem {
 }
 
 export interface Inquiry {
+  id?: number;
   user_id?: string | null;
+  recipient_id?: string | null; // Added for Inbox logic
   item_id: string;
   item_type: string;
   name: string;
   email: string;
   phone: string;
   message: string;
+  subject?: string; // Added subject
   status: string;
+  created_at?: string;
 }
 
 export interface Transaction {

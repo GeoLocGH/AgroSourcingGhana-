@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon, PhoneIcon, MailIcon } from './common/icons';
-import type { User, UserFile, MarketplaceItem, EquipmentItem, View, Transaction } from '../types';
+import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon, PhoneIcon, MailIcon, ClockIcon } from './common/icons';
+import type { User, UserFile, MarketplaceItem, EquipmentItem, View, Transaction, Inquiry, Message } from '../types';
 import { supabase } from '../services/supabase';
 import { getUserFiles, deleteUserFile, uploadUserFile, getFreshDownloadUrl } from '../services/storageService';
 import { getTransactionHistory } from '../services/paymentService';
@@ -18,8 +18,17 @@ interface ProfileProps {
   setActiveView: (view: View) => void;
 }
 
+interface ChatSession {
+    item_id: string;
+    sender_id: string;
+    last_message: string;
+    last_time: string;
+    sender_name?: string; // Derived if possible
+    item_title?: string;  // Derived if possible
+}
+
 const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveView }) => {
-  const [activeTab, setActiveTab] = useState<'DETAILS' | 'LISTINGS' | 'LIKES' | 'FILES' | 'TRANSACTIONS'>('DETAILS');
+  const [activeTab, setActiveTab] = useState<'DETAILS' | 'LISTINGS' | 'LIKES' | 'FILES' | 'TRANSACTIONS' | 'INBOX'>('DETAILS');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const { addNotification } = useNotifications();
@@ -32,6 +41,20 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   const [myEquipment, setMyEquipment] = useState<EquipmentItem[]>([]);
   const [likedItems, setLikedItems] = useState<MarketplaceItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  
+  // Inbox State
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [loadingInbox, setLoadingInbox] = useState(false);
+  
+  // Chat Modal State (Duplicate logic for simplicity in Profile context)
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeChatContext, setActiveChatContext] = useState<{itemId: string, otherUserId: string, title: string} | null>(null);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const [loadingListings, setLoadingListings] = useState(false);
   const [loadingLikes, setLoadingLikes] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
@@ -61,8 +84,11 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       fetchMyProperties();
       fetchLikedItems();
       fetchTransactions();
+      fetchInbox();
     }
   }, [user]);
+
+  // --- Data Fetching ---
 
   const fetchUserFiles = async () => {
     if (!user || !user.uid) return;
@@ -94,7 +120,6 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       if (!user || !user.uid) return;
       setLoadingListings(true);
       try {
-          // Standardized to use user_id
           const { data: marketData } = await supabase.from('marketplace').select('*').eq('user_id', user.uid);
           setMyListings((marketData as MarketplaceItem[]) || []);
 
@@ -125,6 +150,54 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
           setLoadingLikes(false);
       }
   };
+
+  const fetchInbox = async () => {
+      if (!user || !user.uid) return;
+      setLoadingInbox(true);
+      try {
+          // 1. Fetch Inquiries (Emails)
+          const { data: inqData } = await supabase
+            .from('inquiries')
+            .select('*')
+            .eq('recipient_id', user.uid)
+            .order('created_at', { ascending: false });
+          setInquiries((inqData as Inquiry[]) || []);
+
+          // 2. Fetch Chat Sessions (Group by item_id + sender_id)
+          // Since we can't easily do complex GROUP BY with latest message in standard Supabase client without views/functions,
+          // we'll fetch recent chats where receiver is user, and client-side group.
+          const { data: chatData } = await supabase
+             .from('chats')
+             .select('*')
+             .eq('receiver_id', user.uid)
+             .order('created_at', { ascending: false })
+             .limit(50); // Fetch last 50 messages to form recent sessions
+
+          if (chatData) {
+              const sessionsMap = new Map<string, ChatSession>();
+              
+              chatData.forEach((msg: any) => {
+                  const key = `${msg.item_id}_${msg.sender_id}`;
+                  if (!sessionsMap.has(key)) {
+                      sessionsMap.set(key, {
+                          item_id: msg.item_id,
+                          sender_id: msg.sender_id,
+                          last_message: msg.message_text,
+                          last_time: msg.created_at
+                      });
+                  }
+              });
+              setChatSessions(Array.from(sessionsMap.values()));
+          }
+
+      } catch (err) {
+          console.error("Inbox fetch error:", err);
+      } finally {
+          setLoadingInbox(false);
+      }
+  };
+
+  // --- Handlers ---
 
   const handleFileDelete = async (file: UserFile) => {
     if (!user || !user.uid) return;
@@ -165,20 +238,16 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
               name: formData.name,
               phone: formData.phone,
               messaging_enabled: formData.messaging_enabled
-              // photo_url and merchant_id excluded from DB update to avoid Schema Error if they don't exist
           };
 
-          // Use 'id' instead of 'uid' for the query
           const { error } = await supabase.from('users').update(updates).eq('id', user.uid);
           if (error) throw error;
           
-          // Store photo URL and merchant_id in Auth Metadata instead
           await supabase.auth.updateUser({
               data: { 
                   full_name: formData.name, 
                   avatar_url: finalPhotoURL,
                   phone: formData.phone,
-                  // Do NOT update merchant_id here to prevent override, only read it
               }
           });
           
@@ -196,6 +265,68 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   const toggleFileDetails = (id: string) => {
     setExpandedFileId(expandedFileId === id ? null : id);
   };
+
+  // --- Inbox / Chat Logic ---
+
+  const openChat = async (session: ChatSession) => {
+      if (!user?.uid) return;
+      setActiveChatContext({
+          itemId: session.item_id,
+          otherUserId: session.sender_id,
+          title: `Chat about Item #${session.item_id}`
+      });
+      setIsChatOpen(true);
+      loadChatMessages(session.item_id, session.sender_id);
+  };
+
+  const loadChatMessages = async (itemId: string, otherUserId: string) => {
+      const { data } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('item_id', itemId)
+        .or(`sender_id.eq.${otherUserId},receiver_id.eq.${otherUserId}`)
+        .order('created_at', { ascending: true });
+      
+      if (data) {
+          const msgs = data.map((d: any) => ({
+              id: d.id,
+              sender: d.sender_id === user?.uid ? 'user' : 'seller', // 'user' means 'me' in this context logic
+              text: d.message_text,
+              timestamp: new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }));
+          setChatMessages(msgs);
+      }
+  };
+
+  const handleSendReply = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!activeChatContext || !user?.uid || !chatInput.trim()) return;
+      setSendingChat(true);
+
+      try {
+          const { error } = await supabase.from('chats').insert([{
+              sender_id: user.uid, // Me
+              receiver_id: activeChatContext.otherUserId, // Them
+              item_id: activeChatContext.itemId,
+              message_text: chatInput.trim()
+          }]);
+
+          if (error) throw error;
+          
+          setChatInput('');
+          // Optimistic update or refetch
+          loadChatMessages(activeChatContext.itemId, activeChatContext.otherUserId);
+      } catch (err) {
+          console.error("Reply failed", err);
+      } finally {
+          setSendingChat(false);
+      }
+  };
+
+  useEffect(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isChatOpen]);
+
 
   const getStatusColor = (status: Transaction['status']) => {
       switch(status) {
@@ -224,6 +355,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Sidebar Profile Card */}
           <div className="lg:col-span-1 space-y-6">
               <Card className="text-center p-6 flex flex-col items-center">
                    <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden mb-4 bg-gray-200 relative group">
@@ -292,17 +424,17 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
           </div>
 
           <div className="lg:col-span-3">
-              {/* Added text-gray-900 to ensure visibility on white background as parent is dark mode */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden text-gray-900">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden text-gray-900 min-h-[500px]">
                   <div className="flex border-b overflow-x-auto no-scrollbar">
-                      <button onClick={() => setActiveTab('DETAILS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'DETAILS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Account Details</button>
+                      <button onClick={() => setActiveTab('DETAILS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'DETAILS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Account</button>
+                      <button onClick={() => setActiveTab('INBOX')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'INBOX' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Inbox</button>
                       <button onClick={() => setActiveTab('LISTINGS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LISTINGS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>My Listings</button>
                       <button onClick={() => setActiveTab('LIKES')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'LIKES' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Liked</button>
                       <button onClick={() => setActiveTab('FILES')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'FILES' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Files</button>
                       <button onClick={() => setActiveTab('TRANSACTIONS')} className={`flex-1 py-4 px-6 text-sm font-medium whitespace-nowrap ${activeTab === 'TRANSACTIONS' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-50'}`}>Transactions</button>
                   </div>
 
-                  <div className="p-6 min-h-[400px]">
+                  <div className="p-6">
                       {activeTab === 'DETAILS' && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-900">
                               <div><label className="text-xs text-gray-500 uppercase">Email</label><p className="font-medium">{user.email}</p></div>
@@ -325,6 +457,58 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                           </div>
                       )}
 
+                      {activeTab === 'INBOX' && (
+                          <div className="space-y-6">
+                              <div>
+                                  <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                      <MessageSquareIcon className="w-5 h-5 text-indigo-600" /> Recent Chats
+                                  </h3>
+                                  {loadingInbox ? <p className="text-sm text-gray-500">Loading chats...</p> : 
+                                    chatSessions.length === 0 ? <p className="text-sm text-gray-500 italic">No active conversations.</p> :
+                                    <div className="space-y-2">
+                                        {chatSessions.map((chat, idx) => (
+                                            <div key={idx} className="flex justify-between items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer" onClick={() => openChat(chat)}>
+                                                <div>
+                                                    <p className="font-bold text-sm text-gray-900">Item #{chat.item_id.substring(0, 8)}...</p>
+                                                    <p className="text-sm text-gray-600 truncate max-w-xs">{chat.last_message}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-xs text-gray-400">{new Date(chat.last_time).toLocaleDateString()}</span>
+                                                    <Button className="ml-2 text-xs py-1 px-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-none shadow-none">Reply</Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                  }
+                              </div>
+
+                              <div>
+                                  <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-t pt-6">
+                                      <MailIcon className="w-5 h-5 text-orange-600" /> Received Inquiries
+                                  </h3>
+                                  {loadingInbox ? <p className="text-sm text-gray-500">Loading inquiries...</p> : 
+                                    inquiries.length === 0 ? <p className="text-sm text-gray-500 italic">No inquiries received yet.</p> :
+                                    <div className="space-y-3">
+                                        {inquiries.map((inq, idx) => (
+                                            <div key={idx} className="bg-orange-50 border border-orange-100 rounded-lg p-4">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <h4 className="font-bold text-orange-900 text-sm">{inq.subject || 'No Subject'}</h4>
+                                                    <span className="text-xs text-orange-400">{inq.created_at ? new Date(inq.created_at).toLocaleDateString() : ''}</span>
+                                                </div>
+                                                <p className="text-sm text-gray-800 mb-2">{inq.message}</p>
+                                                <div className="text-xs text-gray-500 flex flex-wrap gap-3">
+                                                    <span>From: <span className="font-medium text-gray-900">{inq.name}</span></span>
+                                                    <span>Phone: <span className="font-medium text-gray-900">{inq.phone}</span></span>
+                                                    <span>Email: <span className="font-medium text-gray-900">{inq.email}</span></span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                  }
+                              </div>
+                          </div>
+                      )}
+
                       {activeTab === 'TRANSACTIONS' && (
                           <div className="space-y-4">
                               <h3 className="text-lg font-bold text-gray-800">Payment History (MoMo & Digital Wallet)</h3>
@@ -335,7 +519,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                               <tr>
                                                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provider</th>
-                                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ref</th>
                                                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                               </tr>
@@ -489,6 +673,38 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
               </div>
           </div>
       </div>
+
+      {/* Profile Chat Modal */}
+      {isChatOpen && activeChatContext && (
+           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-lg w-full max-w-md flex flex-col h-[70vh]">
+                    <div className="p-4 border-b flex justify-between items-center">
+                        <div>
+                            <h3 className="font-bold text-lg text-gray-800">Direct Chat</h3>
+                            <p className="text-sm text-gray-500">{activeChatContext.title}</p>
+                        </div>
+                        <button onClick={() => setIsChatOpen(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
+                    </div>
+                    <div className="flex-grow p-4 overflow-y-auto bg-gray-50 space-y-4">
+                        {chatMessages.length > 0 ? chatMessages.map((msg, index) => (
+                            <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-xs lg:max-w-md p-3 rounded-lg ${msg.sender === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                                    <p>{msg.text}</p>
+                                    <p className={`text-xs mt-1 ${msg.sender === 'user' ? 'text-indigo-200' : 'text-gray-500'} text-right`}>{msg.timestamp}</p>
+                                </div>
+                            </div>
+                        )) : (
+                            <p className="text-center text-gray-500 mt-10">Start the conversation!</p>
+                        )}
+                        <div ref={chatEndRef} />
+                    </div>
+                    <form onSubmit={handleSendReply} className="p-4 border-t flex gap-2">
+                        <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type message..." className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-white !text-gray-900" />
+                        <Button type="submit" isLoading={sendingChat}>Send</Button>
+                    </form>
+                </div>
+            </div>
+      )}
     </div>
   );
 };
