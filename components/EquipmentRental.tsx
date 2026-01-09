@@ -531,7 +531,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             ) : (
                 filteredItems.map(item => (
                     <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
-                        <div className="relative h-48 -mx-6 -mt-6 mb-4 bg-gray-200 group overflow-hidden">
+                        <div className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-200 group overflow-hidden">
                              <img 
                                 src={item.image_url || 'https://placehold.co/600x400?text=Equipment'} 
                                 alt={item.name} 

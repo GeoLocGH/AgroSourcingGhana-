@@ -216,8 +216,12 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                                         </div>
                                     </div>
                                     {(post.images?.[0] || post.image_url) && (
-                                        <div className="mt-3 h-32 w-full bg-gray-100 rounded-md overflow-hidden">
-                                            <img src={post.images?.[0] || post.image_url || ''} alt="Post Attachment" className="w-full h-full object-cover" />
+                                        <div className="mt-3 h-32 w-full bg-gray-100 rounded-md overflow-hidden relative">
+                                            <img 
+                                                src={post.images?.[0] || post.image_url || ''} 
+                                                alt="Post Attachment" 
+                                                className="w-full h-full object-cover transition-transform hover:scale-105" 
+                                            />
                                         </div>
                                     )}
                                 </Card>
@@ -263,6 +267,7 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                                     alt={`Attachment ${idx}`} 
                                     className="rounded-lg border border-gray-200 w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
                                     onClick={() => setMagnifiedImage(img)}
+                                    title="Click to zoom"
                                 />
                             ))}
                         </div>
@@ -293,9 +298,10 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                                                 <img 
                                                     key={i} 
                                                     src={img} 
-                                                    className="w-16 h-16 rounded object-cover border cursor-pointer hover:scale-105 transition-transform" 
+                                                    className="w-20 h-20 rounded object-cover border border-gray-300 cursor-pointer hover:scale-105 transition-transform" 
                                                     alt="Reply attachment" 
                                                     onClick={() => setMagnifiedImage(img)}
+                                                    title="Click to zoom"
                                                 />
                                             ))}
                                         </div>
@@ -411,9 +417,12 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
 
         {/* Image Lightbox Modal */}
         {magnifiedImage && (
-            <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 animate-fade-in" onClick={() => setMagnifiedImage(null)}>
+            <div 
+                className="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in" 
+                onClick={() => setMagnifiedImage(null)}
+            >
                 <button 
-                    className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                    className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-[80]"
                     onClick={() => setMagnifiedImage(null)}
                 >
                     <XIcon className="w-10 h-10" />

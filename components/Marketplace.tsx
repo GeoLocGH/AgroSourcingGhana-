@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { ShoppingCartIcon, SearchIcon, PlusIcon, MessageSquareIcon, XIcon, UploadIcon, PhoneIcon, MailIcon, HeartIcon, TagIcon, PencilIcon, TrashIcon, GridIcon } from './common/icons';
+import { ShoppingCartIcon, SearchIcon, PlusIcon, MessageSquareIcon, XIcon, UploadIcon, PhoneIcon, MailIcon, HeartIcon, TagIcon, PencilIcon, TrashIcon, GridIcon, ShieldCheckIcon } from './common/icons';
 import { supabase } from '../services/supabase';
 import { uploadUserFile } from '../services/storageService';
 import { fileToDataUri } from '../utils';
@@ -29,7 +29,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false);
+  const [detailsItem, setDetailsItem] = useState<MarketplaceItem | null>(null); // For Details View
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Add Item Form State
@@ -78,9 +82,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const fetchItems = async () => {
       setLoading(true);
       try {
-          // Check if user has liked items to set 'userHasLiked' locally if needed, 
-          // or handle via separate 'likes' query. 
-          // For simplicity, just fetching items here.
           const { data, error } = await supabase
               .from('marketplace')
               .select('*')
@@ -88,7 +89,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
           
           if (error) throw error;
           
-          // If user is logged in, we could check likes. For now, basic list.
           let itemsList = (data as MarketplaceItem[]) || [];
 
           if (user?.uid) {
@@ -231,8 +231,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   };
 
   const filteredItems = items.filter(item => {
-      const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            item.location_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const searchLower = searchTerm.toLowerCase();
+      // Ensure location_name exists before calling toLowerCase
+      const locationMatch = (item.location_name || '').toLowerCase().includes(searchLower);
+      const titleMatch = item.title.toLowerCase().includes(searchLower);
+      const matchesSearch = titleMatch || locationMatch;
       const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
       return matchesSearch && matchesCategory;
   });
@@ -422,7 +425,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             filteredItems.length === 0 ? <p className="col-span-full text-center py-10 text-gray-500">No items found.</p> :
             filteredItems.map(item => (
                 <Card key={item.id} className="flex flex-col h-full hover:shadow-lg transition-shadow overflow-hidden group">
-                    <div className="relative h-48 -mx-6 -mt-6 mb-4 bg-gray-100 overflow-hidden">
+                    <div className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-100 overflow-hidden cursor-pointer" onClick={() => setDetailsItem(item)}>
                         <img 
                             src={item.image_urls?.[0] || 'https://placehold.co/600x400?text=No+Image'} 
                             alt={item.title} 
@@ -431,11 +434,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                         <div className="absolute top-2 right-2 flex gap-1">
                              {isOwner(item) ? (
                                  <>
-                                     <button onClick={() => openEditModal(item)} className="p-1.5 bg-white/90 rounded-full text-gray-700 hover:text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4" /></button>
-                                     <button onClick={() => { setItemToDelete(item); setShowDeleteModal(true); }} className="p-1.5 bg-white/90 rounded-full text-gray-700 hover:text-red-600 shadow-sm"><TrashIcon className="w-4 h-4" /></button>
+                                     <button onClick={(e) => { e.stopPropagation(); openEditModal(item); }} className="p-1.5 bg-white/90 rounded-full text-gray-700 hover:text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4" /></button>
+                                     <button onClick={(e) => { e.stopPropagation(); setItemToDelete(item); setShowDeleteModal(true); }} className="p-1.5 bg-white/90 rounded-full text-gray-700 hover:text-red-600 shadow-sm"><TrashIcon className="w-4 h-4" /></button>
                                  </>
                              ) : (
-                                 <button onClick={() => handleLike(item)} className="p-1.5 bg-white/90 rounded-full text-gray-700 hover:text-red-500 shadow-sm">
+                                 <button onClick={(e) => { e.stopPropagation(); handleLike(item); }} className="p-1.5 bg-white/90 rounded-full text-gray-700 hover:text-red-500 shadow-sm">
                                      <HeartIcon className="w-4 h-4" filled={item.userHasLiked} />
                                  </button>
                              )}
@@ -447,42 +450,106 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                         </div>
                     </div>
 
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex justify-between items-start mb-1">
                         <div>
                             <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{item.title}</h3>
-                            <p className="text-xs text-gray-500 flex items-center gap-1">
-                                {item.location_name || 'Location N/A'}
-                            </p>
                         </div>
                         <p className="font-bold text-green-700 whitespace-nowrap">GHS {item.price.toFixed(2)}</p>
                     </div>
 
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-grow">{item.usage_instructions || 'No description provided.'}</p>
-                    
-                    <div className="mt-auto flex items-center justify-between pt-3 border-t border-gray-100">
-                        <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-xs font-bold">
-                                {item.seller_name?.[0] || 'U'}
-                            </div>
-                            <span className="text-xs text-gray-500 truncate max-w-[100px]">{item.seller_name}</span>
-                        </div>
-                        
-                        {!isOwner(item) && (
-                            <div className="flex gap-2">
-                                <a href={`tel:${item.seller_phone}`} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors" title="Call">
-                                    <PhoneIcon className="w-5 h-5" />
-                                </a>
-                                <button onClick={() => handleOpenChat(item)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="Chat">
-                                    <MessageSquareIcon className="w-5 h-5" />
-                                </button>
-                            </div>
+                    {/* Seller Info Row - Styled like screenshot */}
+                    <div className="flex items-center gap-2 mb-3 text-sm">
+                        <span className="text-blue-600 font-medium cursor-pointer hover:underline">{item.seller_name}</span>
+                        {item.merchant_id && (
+                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center border border-blue-200">
+                                <ShieldCheckIcon className="w-3 h-3 mr-0.5" /> VERIFIED
+                            </span>
                         )}
-                        {isOwner(item) && <span className="text-xs text-gray-400 italic px-2">Your Item</span>}
+                        <div className="flex items-center gap-1 text-gray-500 ml-auto">
+                            <HeartIcon className="w-3 h-3 text-red-500" filled />
+                            <span className="text-xs font-semibold">{item.likes || 0}</span>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-auto grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
+                        <Button 
+                            onClick={() => setDetailsItem(item)} 
+                            className="bg-gray-200 !text-gray-900 hover:bg-gray-300 py-2 text-sm shadow-none"
+                        >
+                            Details
+                        </Button>
+                        <Button 
+                            onClick={() => handleOpenChat(item)} 
+                            className="bg-green-700 hover:bg-green-800 py-2 text-sm flex items-center justify-center gap-1 shadow-md"
+                        >
+                            <ShoppingCartIcon className="w-4 h-4" /> Buy Now
+                        </Button>
                     </div>
                 </Card>
             ))
            }
        </div>
+
+       {/* Details Modal */}
+       {detailsItem && (
+           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setDetailsItem(null)}>
+               <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={() => { /* Prevent close on card click */ }}>
+                   <div className="flex justify-between items-start mb-4">
+                       <h3 className="text-xl font-bold text-gray-800">{detailsItem.title}</h3>
+                       <button onClick={() => setDetailsItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   
+                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200">
+                       <img 
+                           src={detailsItem.image_urls?.[0] || 'https://placehold.co/600x400?text=No+Image'} 
+                           alt={detailsItem.title}
+                           className="w-full h-full object-cover"
+                       />
+                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                           {detailsItem.location_name || 'Location Unknown'}
+                       </div>
+                   </div>
+
+                   <div className="space-y-4 text-gray-800">
+                       <div className="flex justify-between items-center border-b pb-3">
+                           <span className="text-2xl font-bold text-green-700">GHS {detailsItem.price.toFixed(2)}</span>
+                           <div className="flex flex-col items-end">
+                               <span className="text-xs text-gray-500">Category</span>
+                               <span className="font-medium bg-gray-100 px-2 py-0.5 rounded">{detailsItem.category}</span>
+                           </div>
+                       </div>
+
+                       <div>
+                           <h4 className="font-bold text-sm text-gray-700 mb-1">Description</h4>
+                           <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                               {detailsItem.usage_instructions || 'No detailed description provided by the seller.'}
+                           </p>
+                       </div>
+
+                       <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                           <h4 className="font-bold text-sm text-blue-900 mb-2 flex items-center">
+                               Seller Information
+                               {detailsItem.merchant_id && <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />}
+                           </h4>
+                           <div className="grid grid-cols-2 gap-4 text-sm">
+                               <div>
+                                   <span className="block text-xs text-blue-700 uppercase">Name</span>
+                                   <span className="font-medium text-blue-900">{detailsItem.seller_name}</span>
+                               </div>
+                               <div>
+                                   <span className="block text-xs text-blue-700 uppercase">Phone</span>
+                                   <span className="font-medium text-blue-900">{detailsItem.seller_phone || 'Hidden'}</span>
+                               </div>
+                           </div>
+                       </div>
+
+                       <Button onClick={() => { setDetailsItem(null); handleOpenChat(detailsItem); }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
+                           <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
+                       </Button>
+                   </div>
+               </Card>
+           </div>
+       )}
 
        {/* Add/Edit Modal */}
        {showAddModal && (
