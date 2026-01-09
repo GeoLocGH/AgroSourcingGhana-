@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon, PhoneIcon, MailIcon, ClockIcon } from './common/icons';
+import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon, PhoneIcon, MailIcon, ClockIcon, CheckCircleIcon, AlertTriangleIcon } from './common/icons';
 import type { User, UserFile, MarketplaceItem, EquipmentItem, View, Transaction, Inquiry, Message } from '../types';
 import { supabase } from '../services/supabase';
 import { getUserFiles, deleteUserFile, uploadUserFile, getFreshDownloadUrl } from '../services/storageService';
@@ -42,9 +42,15 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   const [likedItems, setLikedItems] = useState<MarketplaceItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
-  // Item Details Modal State (For Liked Items)
+  // Item Details Modal State (For Liked Items & My Store Products)
   const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Details Modal State (For My Store Equipment)
+  const [selectedEquipment, setSelectedEquipment] = useState<EquipmentItem | null>(null);
+
+  // Details Modal State (For Transactions)
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   // Inbox State
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -609,7 +615,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                           </thead>
                                           <tbody className="bg-white divide-y divide-gray-200">
                                               {transactions.map(tx => (
-                                                  <tr key={tx.id} className="hover:bg-gray-50">
+                                                  <tr key={tx.id} onClick={() => setSelectedTransaction(tx)} className="hover:bg-gray-50 cursor-pointer transition-colors">
                                                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                           {new Date(tx.created_at).toLocaleDateString()}
                                                       </td>
@@ -688,7 +694,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                            </h4>
                                            <div className="space-y-3">
                                                {myListings.length > 0 ? myListings.map(item => (
-                                                   <div key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                                                   <div key={item.id} onClick={() => setSelectedItem(item)} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group">
                                                        <img src={item.image_urls?.[0] || 'https://placehold.co/50'} alt={item.title} className="w-12 h-12 rounded object-cover border border-gray-200" />
                                                        <div className="flex-grow">
                                                            <p className="font-bold text-gray-900">{item.title}</p>
@@ -718,7 +724,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                            </h4>
                                            <div className="space-y-3">
                                                {myEquipment.length > 0 ? myEquipment.map(item => (
-                                                   <div key={item.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                                                   <div key={item.id} onClick={() => setSelectedEquipment(item)} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group">
                                                        <img src={item.image_url || 'https://placehold.co/50'} alt={item.name} className="w-12 h-12 rounded object-cover border border-gray-200" />
                                                        <div className="flex-grow">
                                                            <p className="font-bold text-gray-900">{item.name}</p>
@@ -757,7 +763,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
           </div>
       </div>
 
-      {/* Item Details Modal (For Liked Items) */}
+      {/* Item Details Modal (For Liked Items & My Store Products) */}
       {selectedItem && (
            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedItem(null)}>
                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => { e.stopPropagation(); /* Prevent close on card click */ }}>
@@ -843,9 +849,122 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                            </div>
                        </div>
 
-                       <Button onClick={() => handleOpenItemChat(selectedItem)} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
-                           <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
-                       </Button>
+                       {user?.uid !== selectedItem.user_id ? (
+                           <Button onClick={() => handleOpenItemChat(selectedItem)} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
+                               <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
+                           </Button>
+                       ) : (
+                           <div className="p-3 bg-gray-100 text-center rounded-lg text-gray-500 text-sm font-medium border border-gray-200">
+                               <UserIcon className="w-4 h-4 inline mr-1" /> This is your listing
+                           </div>
+                       )}
+                   </div>
+               </Card>
+           </div>
+      )}
+
+      {/* Equipment Details Modal */}
+      {selectedEquipment && (
+           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedEquipment(null)}>
+               <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                   <div className="flex justify-between items-start mb-4">
+                       <h3 className="text-xl font-bold text-gray-800">{selectedEquipment.name}</h3>
+                       <button onClick={() => setSelectedEquipment(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   
+                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200 group">
+                        <img 
+                            src={selectedEquipment.image_url || 'https://placehold.co/600x400?text=No+Image'} 
+                            alt={selectedEquipment.name}
+                            className="w-full h-full object-cover"
+                        />
+                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
+                           {selectedEquipment.location || 'Location Unknown'}
+                       </div>
+                   </div>
+
+                   <div className="space-y-4 text-gray-800">
+                       <div className="flex justify-between items-center border-b pb-3">
+                           <span className="text-2xl font-bold text-indigo-700">GHS {selectedEquipment.price_per_day.toFixed(2)}<span className='text-sm text-gray-500 font-normal'>/day</span></span>
+                           <div className="flex flex-col items-end">
+                               <span className="text-xs text-gray-500">Type</span>
+                               <span className="font-medium bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded">{selectedEquipment.type}</span>
+                           </div>
+                       </div>
+
+                       <div>
+                           <h4 className="font-bold text-sm text-gray-700 mb-1">Description</h4>
+                           <div className="bg-gray-50 p-3 rounded border border-gray-100 text-sm text-gray-600">
+                               <p className="leading-relaxed whitespace-pre-wrap">
+                                   {selectedEquipment.description || 'No detailed description available.'}
+                               </p>
+                           </div>
+                       </div>
+
+                       <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                           <h4 className="font-bold text-sm text-blue-900 mb-2 flex items-center">
+                               Owner Information
+                               <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />
+                           </h4>
+                           <div className="text-sm">
+                               <span className="block text-xs text-blue-700 uppercase">Name</span>
+                               <span className="font-medium text-blue-900">{selectedEquipment.owner}</span>
+                           </div>
+                       </div>
+                        
+                       <div className="p-3 bg-gray-100 text-center rounded-lg text-gray-500 text-sm font-medium border border-gray-200">
+                           <UserIcon className="w-4 h-4 inline mr-1" /> This is your equipment listing
+                       </div>
+                   </div>
+               </Card>
+           </div>
+      )}
+
+      {/* Transaction Details Modal */}
+      {selectedTransaction && (
+           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedTransaction(null)}>
+               <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                   <div className="flex justify-between items-center mb-6 pb-4 border-b">
+                       <h3 className="text-lg font-bold text-gray-800">Transaction Details</h3>
+                       <button onClick={() => setSelectedTransaction(null)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   
+                   <div className="space-y-6 text-gray-900">
+                       <div className="text-center">
+                           <p className="text-sm text-gray-500 mb-1">Amount</p>
+                           <h2 className={`text-3xl font-bold ${['DEPOSIT', 'LOAN'].includes(selectedTransaction.type) ? 'text-green-600' : 'text-gray-900'}`}>
+                               {selectedTransaction.currency} {selectedTransaction.amount.toFixed(2)}
+                           </h2>
+                           <span className={`inline-block mt-2 px-3 py-1 text-xs font-bold rounded-full uppercase ${getStatusColor(selectedTransaction.status)}`}>
+                               {selectedTransaction.status}
+                           </span>
+                       </div>
+
+                       <div className="bg-gray-50 rounded-lg p-4 space-y-3 border border-gray-200 text-sm">
+                           <div className="flex justify-between">
+                               <span className="text-gray-500">Transaction ID</span>
+                               <span className="font-mono font-medium text-gray-900">{selectedTransaction.provider_reference}</span>
+                           </div>
+                           <div className="flex justify-between">
+                               <span className="text-gray-500">Date & Time</span>
+                               <span className="font-medium text-gray-900">{new Date(selectedTransaction.created_at).toLocaleString()}</span>
+                           </div>
+                           <div className="flex justify-between">
+                               <span className="text-gray-500">Type</span>
+                               <span className="font-medium text-gray-900">{selectedTransaction.type}</span>
+                           </div>
+                           <div className="flex justify-between">
+                               <span className="text-gray-500">Provider</span>
+                               <span className="font-medium text-gray-900">{selectedTransaction.provider}</span>
+                           </div>
+                       </div>
+
+                       {selectedTransaction.description && (
+                           <div>
+                               <p className="text-xs font-bold text-gray-500 uppercase mb-1">Description</p>
+                               <p className="text-sm text-gray-800 bg-white p-3 rounded border">{selectedTransaction.description}</p>
+                           </div>
+                       )}
                    </div>
                </Card>
            </div>
