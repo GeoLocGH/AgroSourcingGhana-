@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { EquipmentType, EquipmentItem, Message, User, Inquiry } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, MailIcon, GridIcon } from './common/icons';
+import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, MailIcon, GridIcon, ShieldCheckIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { fileToDataUri } from '../utils';
 import { supabase } from '../services/supabase';
@@ -30,6 +30,10 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   const [selectedType, setSelectedType] = useState<EquipmentType | 'All'>('All');
   const { addNotification } = useNotifications();
   const { location } = useGeolocation();
+
+  // Modal State for Details
+  const [selectedItem, setSelectedItem] = useState<EquipmentItem | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Form State
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -105,6 +109,26 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isChatVisible]);
+
+  // Slideshow Logic for Details Modal
+  useEffect(() => {
+      if (selectedItem) {
+          setCurrentImageIndex(0);
+      }
+  }, [selectedItem]);
+
+  useEffect(() => {
+      // Logic supports array of images if EquipmentItem type is extended in future.
+      // Currently maps single image_url to array.
+      const images = selectedItem?.image_url ? [selectedItem.image_url] : [];
+      if (images.length <= 1) return;
+
+      const interval = setInterval(() => {
+          setCurrentImageIndex(prev => (prev + 1) % images.length);
+      }, 3000);
+
+      return () => clearInterval(interval);
+  }, [selectedItem]);
 
   // Chat Listener
   useEffect(() => {
@@ -467,6 +491,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       return user && (user.uid === item.user_id || user.type === 'admin');
   };
 
+  // Convert single image to array for slideshow consistency (future-proof)
+  const getSelectedImages = () => selectedItem?.image_url ? [selectedItem.image_url] : [];
+
   return (
     <div className="space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -517,7 +544,10 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             ) : (
                 filteredItems.map(item => (
                     <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
-                        <div className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-200 group overflow-hidden">
+                        <div 
+                            className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-200 group overflow-hidden cursor-pointer"
+                            onClick={() => setSelectedItem(item)}
+                        >
                              <img 
                                 src={item.image_url || 'https://placehold.co/600x400?text=Equipment'} 
                                 alt={item.name} 
@@ -529,7 +559,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                                 }}
                              />
                              {canManage(item) && (
-                                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                      <button onClick={() => openEditModal(item)} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4" /></button>
                                      <button onClick={() => { setItemToDelete(item); setIsDeleteModalVisible(true); }} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-red-600 shadow-sm"><TrashIcon className="w-4 h-4" /></button>
                                  </div>
@@ -537,26 +567,26 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                         </div>
                         <div className="flex justify-between items-start mb-2">
                             <div>
-                                <h3 className="font-bold text-lg text-gray-900">{item.name}</h3>
+                                <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{item.name}</h3>
                                 <p className="text-xs text-gray-500 flex items-center gap-1">
                                     <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{item.type}</span>
-                                    <span>• {item.location}</span>
+                                    <span className="truncate max-w-[120px]">• {item.location}</span>
                                 </p>
                             </div>
-                            <p className="font-bold text-indigo-700">GHS {item.price_per_day}<span className="text-xs text-gray-500 font-normal">/day</span></p>
+                            <p className="font-bold text-indigo-700 whitespace-nowrap">GHS {item.price_per_day}<span className="text-xs text-gray-500 font-normal">/day</span></p>
                         </div>
                         {item.description && <p className="text-sm text-gray-600 mb-4 line-clamp-2">{item.description}</p>}
                         
-                        <div className="mt-auto pt-2 flex gap-2">
+                        <div className="mt-auto pt-2 grid grid-cols-2 gap-2">
                             {canManage(item) ? (
-                                <div className="text-xs text-gray-400 italic w-full text-center py-2 bg-gray-50 rounded">Your Listing</div>
+                                <div className="text-xs text-gray-400 italic w-full text-center py-2 bg-gray-50 rounded col-span-2">Your Listing</div>
                             ) : (
                                 <>
-                                    <Button onClick={() => handleOpenInquiry(item)} className="flex-1 text-xs py-2 bg-indigo-600 hover:bg-indigo-700">
-                                        <MailIcon className="w-4 h-4 mr-1 inline" /> Inquiry
+                                    <Button onClick={() => setSelectedItem(item)} className="text-xs py-2 bg-gray-100 !text-gray-900 hover:bg-gray-200">
+                                        Details
                                     </Button>
-                                    <Button onClick={() => handleOpenChat(item)} className="flex-1 text-xs py-2 bg-white !text-indigo-700 border border-indigo-200 hover:bg-indigo-50">
-                                        <MessageSquareIcon className="w-4 h-4 mr-1 inline" /> Chat
+                                    <Button onClick={() => handleOpenInquiry(item)} className="text-xs py-2 bg-indigo-600 hover:bg-indigo-700">
+                                        <MailIcon className="w-4 h-4 mr-1 inline" /> Inquiry
                                     </Button>
                                 </>
                             )}
@@ -565,6 +595,94 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 ))
             )}
         </div>
+
+        {/* Equipment Details Modal */}
+        {selectedItem && (
+           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedItem(null)}>
+               <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                   <div className="flex justify-between items-start mb-4">
+                       <h3 className="text-xl font-bold text-gray-800">{selectedItem.name}</h3>
+                       <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   
+                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200 group">
+                       {getSelectedImages().length > 0 ? (
+                           getSelectedImages().map((url, idx) => (
+                               <img 
+                                   key={idx}
+                                   src={url} 
+                                   alt={`${selectedItem.name} - view ${idx + 1}`}
+                                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${idx === currentImageIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                               />
+                           ))
+                       ) : (
+                           <img 
+                               src='https://placehold.co/600x400?text=No+Image' 
+                               alt={selectedItem.name}
+                               className="w-full h-full object-cover"
+                           />
+                       )}
+                       
+                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
+                           {selectedItem.location || 'Location Unknown'}
+                       </div>
+
+                       {/* Pagination Dots */}
+                       {getSelectedImages().length > 1 && (
+                           <div className="absolute bottom-2 right-2 flex gap-1 z-20">
+                               {getSelectedImages().map((_, idx) => (
+                                   <div 
+                                     key={idx} 
+                                     className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${idx === currentImageIndex ? 'bg-white' : 'bg-white/40'}`} 
+                                   />
+                               ))}
+                           </div>
+                       )}
+                   </div>
+
+                   <div className="space-y-4 text-gray-800">
+                       <div className="flex justify-between items-center border-b pb-3">
+                           <span className="text-2xl font-bold text-indigo-700">GHS {selectedItem.price_per_day.toFixed(2)}<span className='text-sm text-gray-500 font-normal'>/day</span></span>
+                           <div className="flex flex-col items-end">
+                               <span className="text-xs text-gray-500">Type</span>
+                               <span className="font-medium bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded">{selectedItem.type}</span>
+                           </div>
+                       </div>
+
+                       <div>
+                           <h4 className="font-bold text-sm text-gray-700 mb-1">Description</h4>
+                           <div className="bg-gray-50 p-3 rounded border border-gray-100 text-sm text-gray-600">
+                               <p className="leading-relaxed whitespace-pre-wrap">
+                                   {selectedItem.description || 'No detailed description available.'}
+                               </p>
+                           </div>
+                       </div>
+
+                       <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                           <h4 className="font-bold text-sm text-blue-900 mb-2 flex items-center">
+                               Owner Information
+                               <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />
+                           </h4>
+                           <div className="text-sm">
+                               <span className="block text-xs text-blue-700 uppercase">Name</span>
+                               <span className="font-medium text-blue-900">{selectedItem.owner}</span>
+                           </div>
+                       </div>
+
+                       {!canManage(selectedItem) && (
+                           <div className="grid grid-cols-2 gap-3">
+                               <Button onClick={() => { setSelectedItem(null); handleOpenInquiry(selectedItem); }} className="bg-indigo-600 hover:bg-indigo-700">
+                                   <MailIcon className="w-4 h-4 mr-2" /> Send Inquiry
+                               </Button>
+                               <Button onClick={() => { setSelectedItem(null); handleOpenChat(selectedItem); }} className="bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50">
+                                   <MessageSquareIcon className="w-4 h-4 mr-2" /> Chat Now
+                               </Button>
+                           </div>
+                       )}
+                   </div>
+               </Card>
+           </div>
+       )}
 
         {/* Modal Declarations are same as before, simplified for brevity but full code is present above */}
         {isFormVisible && (

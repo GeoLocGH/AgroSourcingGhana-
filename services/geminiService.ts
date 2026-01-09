@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { GeoLocation, WeatherForecast, PriceData, AdvisoryStage, ServiceResponse, PaymentExtractionResult } from "../types";
 
@@ -13,6 +14,17 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 10
   }
 }
 
+// Renamed helper to avoid conflicts if needed, but keeping it simple
+async function retryWithBackoffHelper<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries === 0) throw error;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return retryWithBackoffHelper(fn, retries - 1, delay * 2);
+  }
+}
+
 function extractSources(response: any) {
     return response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
         title: chunk.web?.title || 'Source',
@@ -24,7 +36,7 @@ export const checkWeatherAlerts = async (location: GeoLocation): Promise<string>
     const prompt = `Check for active severe weather alerts for location: ${location.latitude}, ${location.longitude}. 
     If none, say "No active severe weather alerts."`;
     
-    return retryWithBackoff(async () => {
+    return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
@@ -36,10 +48,14 @@ export const checkWeatherAlerts = async (location: GeoLocation): Promise<string>
     });
 };
 
-export const getLocalWeather = async (location: GeoLocation): Promise<ServiceResponse<WeatherForecast[]>> => {
-    const prompt = `Get the 3-day weather forecast for coordinates ${location.latitude}, ${location.longitude}. Return JSON.`;
+export const getLocalWeather = async (location: GeoLocation | string): Promise<ServiceResponse<WeatherForecast[]>> => {
+    const locString = typeof location === 'string' 
+        ? location 
+        : `${location.latitude}, ${location.longitude}`;
+
+    const prompt = `Get the 3-day weather forecast for ${locString}. Return JSON.`;
     
-    return retryWithBackoff(async () => {
+    return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
@@ -76,7 +92,7 @@ export const getLocalWeather = async (location: GeoLocation): Promise<ServiceRes
 export const getMarketPrices = async (crop: string): Promise<ServiceResponse<PriceData[]>> => {
     const prompt = `Get current market prices for ${crop} in major markets in Ghana. Return JSON.`;
 
-    return retryWithBackoff(async () => {
+    return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
@@ -107,7 +123,7 @@ export const getMarketPrices = async (crop: string): Promise<ServiceResponse<Pri
 };
 
 export const diagnosePlant = async (base64Image: string, mimeType: string): Promise<string> => {
-    return retryWithBackoff(async () => {
+    return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
@@ -124,7 +140,7 @@ export const diagnosePlant = async (base64Image: string, mimeType: string): Prom
 export const getAdvisory = async (crop: string, plantingDate: string, location: GeoLocation): Promise<ServiceResponse<AdvisoryStage[]>> => {
     const prompt = `Create a crop advisory for ${crop} planted on ${plantingDate} at location ${location.latitude}, ${location.longitude}. Return JSON.`;
 
-    return retryWithBackoff(async () => {
+    return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
@@ -155,7 +171,7 @@ export const getAdvisory = async (crop: string, plantingDate: string, location: 
 export const parsePaymentSMS = async (smsText: string): Promise<PaymentExtractionResult> => {
     const prompt = `Extract payment details from this SMS: "${smsText}". Return JSON.`;
 
-    return retryWithBackoff(async () => {
+    return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
@@ -200,7 +216,7 @@ export const generateAnalyticsReport = async (inputData: string): Promise<string
     - Put the 'WhatsApp Summary' in a distinct block at the end.
     `;
 
-    return retryWithBackoff(async () => {
+    return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: prompt
