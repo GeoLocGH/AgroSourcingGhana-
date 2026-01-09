@@ -33,6 +33,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [detailsItem, setDetailsItem] = useState<MarketplaceItem | null>(null); // For Details View
+  const [currentImageIndex, setCurrentImageIndex] = useState(0); // For Slideshow
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -79,6 +80,24 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
     return () => { subscription.unsubscribe(); };
   }, []);
+
+  // Reset slideshow when details modal opens
+  useEffect(() => {
+      if (detailsItem) {
+          setCurrentImageIndex(0);
+      }
+  }, [detailsItem]);
+
+  // Slideshow Auto-Advance
+  useEffect(() => {
+      if (!detailsItem?.image_urls || detailsItem.image_urls.length <= 1) return;
+
+      const interval = setInterval(() => {
+          setCurrentImageIndex(prev => (prev + 1) % detailsItem.image_urls!.length);
+      }, 3000); // Change image every 3 seconds
+
+      return () => clearInterval(interval);
+  }, [detailsItem]);
 
   const fetchItems = async () => {
       setLoading(true);
@@ -516,15 +535,39 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                        <button onClick={() => setDetailsItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
                    </div>
                    
-                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200">
-                       <img 
-                           src={detailsItem.image_urls?.[0] || 'https://placehold.co/600x400?text=No+Image'} 
-                           alt={detailsItem.title}
-                           className="w-full h-full object-cover"
-                       />
-                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200 group">
+                       {detailsItem.image_urls && detailsItem.image_urls.length > 0 ? (
+                           detailsItem.image_urls.map((url, idx) => (
+                               <img 
+                                   key={idx}
+                                   src={url} 
+                                   alt={`${detailsItem.title} - view ${idx + 1}`}
+                                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${idx === currentImageIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                               />
+                           ))
+                       ) : (
+                           <img 
+                               src='https://placehold.co/600x400?text=No+Image' 
+                               alt={detailsItem.title}
+                               className="w-full h-full object-cover"
+                           />
+                       )}
+                       
+                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
                            {detailsItem.location_name || 'Location Unknown'}
                        </div>
+
+                       {/* Pagination Dots for Slideshow */}
+                       {detailsItem.image_urls && detailsItem.image_urls.length > 1 && (
+                           <div className="absolute bottom-2 right-2 flex gap-1 z-20">
+                               {detailsItem.image_urls.map((_, idx) => (
+                                   <div 
+                                     key={idx} 
+                                     className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${idx === currentImageIndex ? 'bg-white' : 'bg-white/40'}`} 
+                                   />
+                               ))}
+                           </div>
+                       )}
                    </div>
 
                    <div className="space-y-4 text-gray-800">
