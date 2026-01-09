@@ -42,6 +42,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
       category: 'Produce',
       price: 0,
       usage_instructions: '', // Description/Details
+      storage_recommendations: '',
       location_name: '',
       location_lat: undefined,
       location_lng: undefined
@@ -89,7 +90,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
           
           if (error) throw error;
           
-          let itemsList = (data as MarketplaceItem[]) || [];
+          // Data normalization: Ensure user_id is present by checking owner_id fallback
+          let itemsList = (data || []).map((item: any) => ({
+              ...item,
+              user_id: item.user_id || item.owner_id
+          })) as MarketplaceItem[];
 
           if (user?.uid) {
                const { data: likes } = await supabase.from('marketplace_likes').select('item_id').eq('user_id', user.uid);
@@ -165,6 +170,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
       
       const receiverId = chatContext.receiverId || chatContext.participants?.find(p => p !== currentUser.id);
       if (!receiverId) {
+          console.error("Receiver ID missing", chatContext);
+          addNotification({ type: 'market', title: 'Error', message: 'Cannot verify seller info to send message.', view: 'MARKETPLACE' });
           setIsSending(false);
           return;
       }
@@ -196,6 +203,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
           addNotification({ type: 'market', title: 'Oops', message: 'This is your own item.', view: 'MARKETPLACE' });
           return;
       }
+      
+      // Safety check for missing user_id
+      if (!item.user_id) {
+          console.warn("Item missing user_id:", item);
+          addNotification({ type: 'market', title: 'Unavailable', message: 'Seller information is incomplete. Try refreshing.', view: 'MARKETPLACE' });
+          return;
+      }
+
       setChatContext({
           id: item.id,
           name: item.seller_name,
@@ -267,7 +282,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   };
 
   const resetForm = () => {
-      setNewItem({ title: '', category: 'Produce', price: 0, usage_instructions: '', location_name: '' });
+      setNewItem({ title: '', category: 'Produce', price: 0, usage_instructions: '', storage_recommendations: '', location_name: '' });
       setItemImage(null);
       setImagePreview(null);
       setIsEditMode(false);
@@ -290,6 +305,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
               category: newItem.category,
               price: Number(newItem.price),
               usage_instructions: newItem.usage_instructions, // Description
+              storage_recommendations: newItem.storage_recommendations,
               location_name: newItem.location_name,
               location_lat: newItem.location_lat,
               location_lng: newItem.location_lng,
@@ -333,6 +349,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
               category: newItem.category,
               price: Number(newItem.price),
               usage_instructions: newItem.usage_instructions,
+              storage_recommendations: newItem.storage_recommendations,
               location_name: newItem.location_name,
               location_lat: newItem.location_lat,
               location_lng: newItem.location_lng,
@@ -457,7 +474,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                         <p className="font-bold text-green-700 whitespace-nowrap">GHS {item.price.toFixed(2)}</p>
                     </div>
 
-                    {/* Seller Info Row - Styled like screenshot */}
+                    {/* Seller Info Row */}
                     <div className="flex items-center gap-2 mb-3 text-sm">
                         <span className="text-blue-600 font-medium cursor-pointer hover:underline">{item.seller_name}</span>
                         {item.merchant_id && (
@@ -493,7 +510,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
        {/* Details Modal */}
        {detailsItem && (
            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setDetailsItem(null)}>
-               <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={() => { /* Prevent close on card click */ }}>
+               <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => { e.stopPropagation(); /* Prevent close on card click */ }}>
                    <div className="flex justify-between items-start mb-4">
                        <h3 className="text-xl font-bold text-gray-800">{detailsItem.title}</h3>
                        <button onClick={() => setDetailsItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
@@ -521,9 +538,18 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
                        <div>
                            <h4 className="font-bold text-sm text-gray-700 mb-1">Description</h4>
-                           <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                               {detailsItem.usage_instructions || 'No detailed description provided by the seller.'}
-                           </p>
+                           <div className="bg-gray-50 p-3 rounded border border-gray-100 text-sm text-gray-600 space-y-2">
+                               <p className="leading-relaxed whitespace-pre-wrap">
+                                   <span className="font-bold text-gray-800 block mb-1">Usage: </span>
+                                   {detailsItem.usage_instructions || 'No specific usage instructions provided.'}
+                               </p>
+                               {detailsItem.storage_recommendations && (
+                                   <p className="leading-relaxed whitespace-pre-wrap border-t border-gray-200 pt-2 mt-2">
+                                       <span className="font-bold text-gray-800 block mb-1">Storage: </span>
+                                       {detailsItem.storage_recommendations}
+                                   </p>
+                               )}
+                           </div>
                        </div>
 
                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
@@ -543,7 +569,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                            </div>
                        </div>
 
-                       <Button onClick={() => { setDetailsItem(null); handleOpenChat(detailsItem); }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
+                       <Button onClick={() => { 
+                           const itemToChat = detailsItem;
+                           setDetailsItem(null); 
+                           handleOpenChat(itemToChat); 
+                       }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
                            <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
                        </Button>
                    </div>
@@ -577,8 +607,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                            </div>
                        </div>
                        <div>
-                           <label className="text-sm font-medium text-gray-700 block mb-1">Description / Details</label>
-                           <textarea value={newItem.usage_instructions} onChange={e => setNewItem({...newItem, usage_instructions: e.target.value})} className="w-full border p-2 rounded bg-white text-gray-900 h-24" />
+                           <label className="text-sm font-medium text-gray-700 block mb-1">Usage / Description</label>
+                           <textarea value={newItem.usage_instructions} onChange={e => setNewItem({...newItem, usage_instructions: e.target.value})} className="w-full border p-2 rounded bg-white text-gray-900 h-20" placeholder="How to use this product..." />
+                       </div>
+                       <div>
+                           <label className="text-sm font-medium text-gray-700 block mb-1">Storage Instructions (Optional)</label>
+                           <textarea value={newItem.storage_recommendations || ''} onChange={e => setNewItem({...newItem, storage_recommendations: e.target.value})} className="w-full border p-2 rounded bg-white text-gray-900 h-20" placeholder="e.g. Keep in a cool dry place..." />
                        </div>
                        <div>
                            <label className="text-sm font-medium text-gray-700 block mb-1">Location</label>
@@ -620,14 +654,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
        {/* Chat Modal */}
        {isChatVisible && chatContext && (
-           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-               <div className="bg-white w-full max-w-md h-[500px] flex flex-col rounded-xl shadow-2xl">
+           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in">
+               <div className="bg-white w-full max-w-md h-[500px] flex flex-col rounded-xl shadow-2xl z-50">
                    <div className="p-4 border-b flex justify-between items-center bg-purple-50 rounded-t-xl">
                        <div>
                            <h3 className="font-bold text-gray-800">{chatContext.name}</h3>
                            <p className="text-xs text-purple-700 truncate max-w-[200px]">{chatContext.subject}</p>
                        </div>
-                       <button onClick={() => setIsChatVisible(false)}><XIcon className="w-6 h-6 text-gray-500" /></button>
+                       <button onClick={() => setIsChatVisible(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
                    </div>
                    <div className="flex-grow p-4 overflow-y-auto space-y-3 bg-gray-50/50">
                        {messages.map((msg, i) => (
@@ -644,7 +678,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                        <input 
                            value={currentMessage} 
                            onChange={e => setCurrentMessage(e.target.value)}
-                           className="flex-grow border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-purple-500 text-gray-900"
+                           className="flex-grow border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-purple-500 !text-gray-900 !bg-white placeholder-gray-500"
                            placeholder="Type a message..."
                        />
                        <Button type="submit" isLoading={isSending} className="bg-purple-600 hover:bg-purple-700 px-4">Send</Button>
