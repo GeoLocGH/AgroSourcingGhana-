@@ -64,10 +64,33 @@ const App: React.FC = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
+  // Ref for the navigation container to implement scroll hint
+  const navScrollRef = useRef<HTMLDivElement>(null);
+
   // Scroll to top when activeView changes
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeView]);
+
+  // Scroll Hint Animation for Navigation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        if (navScrollRef.current) {
+            // Check if scroll is possible (content > container)
+            if (navScrollRef.current.scrollWidth > navScrollRef.current.clientWidth) {
+                // Scroll right slightly
+                navScrollRef.current.scrollBy({ left: 60, behavior: 'smooth' });
+                
+                // Scroll back after a short delay
+                setTimeout(() => {
+                    navScrollRef.current?.scrollBy({ left: -60, behavior: 'smooth' });
+                }, 1000);
+            }
+        }
+    }, 2000); // Wait a bit after load to catch user attention
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // Listen for global app settings (Header Logo)
   useEffect(() => {
@@ -302,14 +325,14 @@ const App: React.FC = () => {
              {/* Wrapper for Header and Nav - Scrolls with page (removed sticky) */}
              <div className="relative z-40 bg-gray-900 -mx-4 px-4 md:-mx-6 md:px-6 pt-1 pb-2 transition-all">
                  {/* Floating Header Banner */}
-                 <div className="max-w-5xl mx-auto bg-green-800 text-white shadow-2xl rounded-t-xl p-4 sm:px-6 flex justify-between items-center relative z-30 min-h-[88px]">
+                 <div className="max-w-5xl mx-auto bg-green-800 text-white shadow-2xl rounded-t-xl px-3 py-4 sm:p-6 flex justify-between items-center relative z-30 min-h-[88px]">
                      {/* Title Section */}
                      <div className="z-10 relative flex flex-col">
                       <button 
                         onClick={() => setActiveView('DASHBOARD')} 
                         className="hover:opacity-90 transition-opacity text-left group"
                       >
-                          <h1 className="text-xl sm:text-2xl font-bold tracking-tight group-hover:underline decoration-2 underline-offset-2">AgroSourcingGhana℠</h1>
+                          <h1 className="text-lg sm:text-2xl font-bold tracking-tight group-hover:underline decoration-2 underline-offset-2">AgroSourcingGhana℠</h1>
                       </button>
                       <p className="text-xs sm:text-sm text-green-100 cursor-default">Localized, Actionable Insights for Farmers</p>
                       <button 
@@ -390,7 +413,40 @@ const App: React.FC = () => {
 
                  {/* Navigation Bar */}
                  <nav className="max-w-5xl mx-auto bg-white border-b border-x border-gray-200 shadow-lg rounded-b-xl mb-4 relative z-20">
-                   <div className="flex justify-start sm:justify-around p-2 space-x-1 overflow-x-auto no-scrollbar">
+                   {/* Scroll Container with ref */}
+                   <div 
+                        ref={navScrollRef} 
+                        className="flex justify-start sm:justify-around p-2 space-x-1 overflow-x-auto no-scrollbar scroll-smooth cursor-grab active:cursor-grabbing"
+                        onMouseDown={(e) => {
+                            // Optional: Basic mouse drag to scroll implementation for desktop
+                            const slider = navScrollRef.current;
+                            if(!slider) return;
+                            let isDown = true;
+                            let startX = e.pageX - slider.offsetLeft;
+                            let scrollLeft = slider.scrollLeft;
+                            
+                            const onMouseLeave = () => { isDown = false; };
+                            const onMouseUp = () => { isDown = false; };
+                            const onMouseMove = (e: MouseEvent) => {
+                                if(!isDown) return;
+                                e.preventDefault();
+                                const x = e.pageX - slider.offsetLeft;
+                                const walk = (x - startX) * 2; // scroll-fast
+                                slider.scrollLeft = scrollLeft - walk;
+                            };
+                            
+                            slider.addEventListener('mouseleave', onMouseLeave);
+                            slider.addEventListener('mouseup', onMouseUp);
+                            slider.addEventListener('mousemove', onMouseMove);
+                            
+                            // Cleanup listeners on mouse up
+                            window.addEventListener('mouseup', () => {
+                                slider.removeEventListener('mouseleave', onMouseLeave);
+                                slider.removeEventListener('mouseup', onMouseUp);
+                                slider.removeEventListener('mousemove', onMouseMove);
+                            }, { once: true });
+                        }}
+                   >
                      <NavItem view="DASHBOARD" label="Home" icon={<HomeIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
                      <NavItem view="WEATHER" label="Weather" icon={<CloudIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
                      <NavItem view="MARKETPLACE" label="Marketplace" icon={<ShoppingCartIcon />} activeView={activeView} setActiveView={handleSetActiveView} />
