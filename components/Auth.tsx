@@ -72,9 +72,11 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
     setAuthError('');
     setIsLoading(true);
 
+    const cleanEmail = loginEmail.trim().toLowerCase();
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-          email: loginEmail,
+          email: cleanEmail,
           password: loginPass
       });
 
@@ -112,6 +114,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
     }
 
     setIsLoading(true);
+    const cleanEmail = regEmail.trim().toLowerCase();
 
     try {
       // 0. Auto-generate Secure Merchant ID
@@ -119,10 +122,8 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
       const generatedMerchantId = `AGRO-PAY-${randomSuffix}`;
 
       // 1. Sign Up - Passing metadata as requested
-      // Note: We include avatar_url as empty string to prevent potential null pointer issues in some DB triggers
-      // Added phone_number to satisfy potential DB triggers that expect this specific key
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
-          email: regEmail,
+          email: cleanEmail,
           password: regPass,
           options: {
               data: {
@@ -139,26 +140,20 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
 
       if (signUpError) {
           // If the error is "Database error saving new user", it often comes from a failed postgres trigger.
-          // Sometimes the user is created in Auth despite this error. We can try to login to check.
           if (signUpError.message && signUpError.message.includes("Database error saving new user")) {
               console.warn("Trigger failed, attempting fallback login...");
               const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-                  email: regEmail,
+                  email: cleanEmail,
                   password: regPass
               });
               
               if (!loginError && loginData.session) {
                   // Fallback successful - The trigger failed but auth user exists.
-                  // We will proceed to manually create the user profile below via handleSession logic in App.tsx
-                  // or by explicitly calling the DB insert here.
-                  
-                  // Let's assume handleSession in App.tsx will catch the session change and create the profile.
-                  // But to be safe, we can manually upsert here too.
                   const userId = loginData.user.id;
                   const newUserDB = {
                       id: userId, 
                       name: regName,
-                      email: regEmail,
+                      email: cleanEmail,
                       phone: regPhone,
                       type: regType,
                       network: regNetwork,
@@ -193,12 +188,10 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               }
           }
 
-          // We manually upsert here to ensure immediate consistency for the UI, 
-          // even if a database trigger also exists to handle metadata copying.
           const newUserDB = {
               id: userId, 
               name: regName,
-              email: regEmail,
+              email: cleanEmail,
               phone: regPhone,
               type: regType,
               network: regNetwork,
@@ -207,14 +200,14 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
 
           const { error: dbError } = await supabase.from('users').upsert([newUserDB]);
           if (dbError) {
-              console.error("DB Insert Error (Trigger might have handled it)", JSON.stringify(dbError));
+              console.error("DB Insert Error", JSON.stringify(dbError));
           }
           
           onLogin({ ...newUserDB, uid: userId, photo_url: profilePhotoUrl } as User);
           closeModal();
       } else {
           // 3. Confirmation Required
-          setVerificationEmail(regEmail);
+          setVerificationEmail(cleanEmail);
           setModalState('VERIFICATION');
       }
 
@@ -232,7 +225,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
+      const { error } = await supabase.auth.resetPasswordForEmail(loginEmail.trim().toLowerCase(), {
           redirectTo: window.location.origin, 
       });
       if (error) throw error;
