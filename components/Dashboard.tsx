@@ -22,21 +22,21 @@ const DEFAULT_ADS: AdBanner[] = [
         id: 'sim-1',
         title: "Farmerline",
         text: "Mergdata: Digitize your farm & access finance.",
-        color: "bg-blue-50 border-blue-100",
+        color: "bg-transparent",
         imageUrl: "https://placehold.co/600x200/2563eb/ffffff?text=Farmerline+Solutions"
     },
     {
         id: 'sim-2',
         title: "AgroCenta",
         text: "Sell directly to off-takers at fair prices.",
-        color: "bg-green-50 border-green-100",
+        color: "bg-transparent",
         imageUrl: "https://placehold.co/600x200/16a34a/ffffff?text=AgroCenta+Market+Access"
     },
     {
         id: 'sim-3',
         title: "TroTro Tractor",
         text: "Reliable mechanization services on demand.",
-        color: "bg-orange-50 border-orange-100",
+        color: "bg-transparent",
         imageUrl: "https://placehold.co/600x200/ea580c/ffffff?text=TroTro+Tractor+Rentals"
     }
 ];
@@ -330,8 +330,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
 
       {/* Ad Banner Card */}
       {adBanners.length > 0 && (
-          <Card className="flex flex-col items-center justify-center text-center p-0 overflow-hidden relative min-h-[200px] border-2 border-dashed border-gray-300 hover:border-gray-400 mb-6 bg-gray-50">
-              <span className="absolute top-2 right-2 text-[10px] text-gray-500 border border-gray-300 bg-white/80 px-1.5 rounded z-20 shadow-sm backdrop-blur-sm">Sponsored</span>
+          <Card className="flex flex-col items-center justify-center text-center p-0 overflow-hidden relative min-h-[200px] border-2 border-yellow-500 hover:border-yellow-400 mb-6 bg-gray-900 shadow-xl shadow-yellow-900/20">
+              <span className="absolute top-2 right-2 text-[10px] text-yellow-500 border border-yellow-500 bg-gray-900/90 px-1.5 rounded z-20 shadow-sm backdrop-blur-sm font-bold tracking-wide">Sponsored</span>
               {adBanners.map((ad, idx) => (
                   <div 
                       key={ad.id} 
@@ -339,22 +339,22 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
                   >
                       {ad.imageUrl && (
                           <div className="absolute inset-0 z-0">
-                              <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover opacity-30" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-white/70 to-white/40"></div>
+                              <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover opacity-40" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/95 via-gray-900/70 to-gray-900/40"></div>
                           </div>
                       )}
                       
                       <div className="relative z-10 flex flex-col items-center">
                           {ad.imageUrl ? (
-                               <img src={ad.imageUrl} alt="Logo" className="h-16 w-auto object-contain mb-3 rounded-md shadow-sm bg-white p-1" />
+                               <img src={ad.imageUrl} alt="Logo" className="h-16 w-auto object-contain mb-3 rounded-md shadow-lg bg-white p-1 border border-gray-200" />
                           ) : (
-                               <div className="mb-4 p-3 bg-white rounded-full shadow-sm">
-                                   <SproutIcon className="w-8 h-8 text-green-600" />
+                               <div className="mb-4 p-3 bg-gray-800 rounded-full shadow-lg border border-gray-700">
+                                   <SproutIcon className="w-8 h-8 text-green-400" />
                                </div>
                           )}
-                          <h3 className="text-2xl font-extrabold text-gray-900 mb-1 drop-shadow-sm">{ad.title}</h3>
-                          <p className="text-base text-gray-800 mb-4 font-medium max-w-lg leading-relaxed">{ad.text}</p>
-                          <Button className="py-2 px-6 text-xs shadow-md bg-green-700 hover:bg-green-800 text-white border-none transform hover:scale-105 transition-transform">
+                          <h3 className="text-2xl font-extrabold text-white mb-1 drop-shadow-md tracking-tight">{ad.title}</h3>
+                          <p className="text-base text-gray-200 mb-4 font-medium max-w-lg leading-relaxed drop-shadow-sm">{ad.text}</p>
+                          <Button className="py-2 px-6 text-xs shadow-md bg-green-700 hover:bg-green-600 text-white border-none transform hover:scale-105 transition-transform ring-1 ring-white/20">
                               Learn More
                           </Button>
                       </div>
