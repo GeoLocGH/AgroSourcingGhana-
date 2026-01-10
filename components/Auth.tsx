@@ -121,8 +121,8 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
       const randomSuffix = Math.random().toString(36).substring(2, 10).toUpperCase();
       const generatedMerchantId = `AGRO-PAY-${randomSuffix}`;
 
-      // 1. Sign Up - Passing metadata as requested
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      // 1. Attempt Sign Up with Metadata (Standard Flow)
+      let { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: regPass,
           options: {
@@ -138,51 +138,54 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
           }
       });
 
+      // 2. Error Handling & Fallback Strategy
       if (signUpError) {
-          // If the error is "Database error saving new user", it often comes from a failed postgres trigger.
+          console.warn("Standard signup failed:", signUpError.message);
+
+          // Scenario A: "Database error saving new user" (Trigger failure)
+          // We try to login (in case user was created but trigger failed) or standard signup without metadata.
           if (signUpError.message && signUpError.message.includes("Database error saving new user")) {
-              console.warn("Trigger failed, attempting fallback login...");
+              
+              // A1. Try fallback login first
               const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
                   email: cleanEmail,
                   password: regPass
               });
-              
+
               if (!loginError && loginData.session) {
-                  // Fallback successful - The trigger failed but auth user exists.
-                  const userId = loginData.user.id;
-                  const newUserDB = {
-                      id: userId, 
-                      name: regName,
+                  console.log("Fallback login successful. Proceeding to manual profile update.");
+                  authData = loginData; // Hijack the authData
+                  // Continue to manual profile sync below...
+              } else {
+                  // A2. If Login fails, user wasn't created. Try Minimal Signup (No Metadata to bypass trigger issues)
+                  console.log("Fallback login failed. Attempting minimal signup...");
+                  const { data: minimalData, error: minimalError } = await supabase.auth.signUp({
                       email: cleanEmail,
-                      phone: regPhone,
-                      type: regType,
-                      network: regNetwork,
-                      merchant_id: generatedMerchantId
-                  };
-                  await supabase.from('users').upsert([newUserDB]);
+                      password: regPass
+                  });
                   
-                  closeModal();
-                  return;
+                  if (minimalError) throw minimalError;
+                  authData = minimalData;
               }
+          } else {
+              throw signUpError; // Throw other errors (e.g. email taken) normally
           }
-          throw signUpError;
       }
 
-      if (!authData.user) throw new Error("Registration failed");
+      if (!authData.user) throw new Error("Registration failed to return user data.");
 
       const userId = authData.user.id;
       const isSessionActive = !!authData.session;
 
-      // 2. If Session is Active (Auto-confirm)
+      // 3. Post-Creation Logic (Profile Sync)
+      // If we have a session, we ensure the public.users profile exists/is updated
       if (isSessionActive) {
           let profilePhotoUrl = '';
           if (regPhoto) {
               try {
                   const fileData = await uploadUserFile(userId, regPhoto, 'profile', '', 'Profile Photo');
                   profilePhotoUrl = fileData.file_url;
-                  
                   await supabase.auth.updateUser({ data: { avatar_url: profilePhotoUrl } });
-
               } catch(e) {
                   console.warn("Photo upload failed during reg", e);
               }
@@ -198,21 +201,24 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               merchant_id: generatedMerchantId
           };
 
+          // Manual Upsert to ensure profile exists (Fixes the trigger failure result)
           const { error: dbError } = await supabase.from('users').upsert([newUserDB]);
+          
           if (dbError) {
-              console.error("DB Insert Error", JSON.stringify(dbError));
+              console.error("DB Profile Sync Error:", JSON.stringify(dbError));
+              // We don't block login if DB sync fails, but we notify console
           }
           
           onLogin({ ...newUserDB, uid: userId, photo_url: profilePhotoUrl } as User);
           closeModal();
       } else {
-          // 3. Confirmation Required
+          // 4. Confirmation Required
           setVerificationEmail(cleanEmail);
           setModalState('VERIFICATION');
       }
 
     } catch (error: any) {
-      console.error("Registration error", error);
+      console.error("Registration final error", error);
       setAuthError(error.message || "Failed to create account.");
     } finally {
       setIsLoading(false);
@@ -261,7 +267,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
       const firstName = user?.name ? user.name.split(' ')[0] : 'User';
       
       // Determine respectful title based on common names
-      // This is a basic heuristic for personalization as gender is not explicitly stored
       const lowerName = firstName.toLowerCase();
       const femaleNames = [
           'gifty', 'ama', 'akua', 'yaa', 'adwoa', 'abena', 'afia', 'esi', 'mary', 'sarah', 
@@ -272,7 +277,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
           'lydia', 'mavis', 'nancy', 'ophelia', 'theresa', 'veronica', 'winifred', 'kate'
       ];
       
-      // Default to Mr. unless name is identified as typically female in this context
       const title = femaleNames.includes(lowerName) ? 'Ms.' : 'Mr.';
 
       try {
