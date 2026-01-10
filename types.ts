@@ -200,6 +200,7 @@ export interface EquipmentItem {
   location_lng?: number;
   price_per_day: number;
   image_url?: string;
+  image_urls?: string[]; // Added support for multiple images
   available: boolean;
   description?: string;
   created_at?: string; 

@@ -54,8 +54,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
       location_lat: undefined,
       location_lng: undefined
   });
-  const [itemImage, setItemImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // Multiple Image State
+  const [itemImages, setItemImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Chat State
@@ -205,10 +207,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     if (!chatContext?.id || !isChatVisible || !user?.uid) return;
 
     const fetchMessages = async () => {
+        // Fetch message where item_id matches AND (sender is me OR receiver is me)
         const { data } = await supabase
             .from('chats')
             .select('*')
             .eq('item_id', chatContext.id)
+            .or(`sender_id.eq.${user.uid},receiver_id.eq.${user.uid}`)
             .order('created_at', { ascending: true });
         
         if (data) {
@@ -225,15 +229,31 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
     const channel = supabase
         .channel(`chat_market:${chatContext.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats', filter: `item_id=eq.${chatContext.id}` }, (payload) => {
-            const newRecord = payload.new;
-            setMessages(prev => [...prev, {
-                id: newRecord.id,
-                sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
-                text: newRecord.message_text,
-                timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }]);
-        })
+        .on(
+            'postgres_changes', 
+            { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'chats', 
+                filter: `item_id=eq.${chatContext.id}` 
+            }, 
+            (payload) => {
+                const newRecord = payload.new;
+                
+                const isRelevant = 
+                    (newRecord.sender_id === user.uid) || 
+                    (newRecord.receiver_id === user.uid);
+
+                if (isRelevant) {
+                    setMessages(prev => [...prev, {
+                        id: newRecord.id,
+                        sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
+                        text: newRecord.message_text,
+                        timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    }]);
+                }
+            }
+        )
         .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -287,9 +307,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
           return;
       }
       
-      // Safety check for missing user_id
       if (!item.user_id) {
-          console.warn("Item missing user_id:", item);
           addNotification({ type: 'market', title: 'Unavailable', message: 'Seller information is incomplete. Try refreshing.', view: 'MARKETPLACE' });
           return;
       }
@@ -312,7 +330,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
       const isLiked = item.userHasLiked;
       
-      // Optimistic Update
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, userHasLiked: !isLiked, likes: (i.likes || 0) + (isLiked ? -1 : 1) } : i));
 
       try {
@@ -323,14 +340,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
           }
       } catch (err) {
           console.error(err);
-          // Revert if failed
           setItems(prev => prev.map(i => i.id === item.id ? { ...i, userHasLiked: isLiked, likes: (i.likes || 0) + (isLiked ? 1 : -1) } : i));
       }
   };
 
   const filteredItems = items.filter(item => {
       const searchLower = searchTerm.toLowerCase();
-      // Ensure location_name exists before calling toLowerCase
       const locationMatch = (item.location_name || '').toLowerCase().includes(searchLower);
       const titleMatch = item.title.toLowerCase().includes(searchLower);
       const matchesSearch = titleMatch || locationMatch;
@@ -339,16 +354,24 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   });
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          if (file.size > 4 * 1024 * 1024) {
-              alert("Image too large (Max 4MB)");
-              return;
+      if (e.target.files) {
+          const filesArray: File[] = Array.from(e.target.files);
+          const validFiles = filesArray.filter(f => f.size <= 4 * 1024 * 1024);
+          
+          if (validFiles.length !== filesArray.length) {
+             alert("Some files were skipped because they exceed 4MB.");
           }
-          setItemImage(file);
-          const preview = await fileToDataUri(file);
-          setImagePreview(preview);
+          
+          const newPreviews = await Promise.all(validFiles.map(fileToDataUri));
+          
+          setItemImages(prev => [...prev, ...validFiles]);
+          setImagePreviews(prev => [...prev, ...newPreviews]);
       }
+  };
+
+  const removeImage = (index: number) => {
+      setItemImages(prev => prev.filter((_, i) => i !== index));
+      setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleUseMyLocation = () => {
@@ -367,8 +390,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
   const resetForm = () => {
       setNewItem({ title: '', category: 'Produce', price: 0, usage_instructions: '', storage_recommendations: '', location_name: '' });
-      setItemImage(null);
-      setImagePreview(null);
+      setItemImages([]);
+      setImagePreviews([]);
       setIsEditMode(false);
   };
 
@@ -378,22 +401,25 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
       
       setIsSubmitting(true);
       try {
-          let imageUrl = '';
-          if (itemImage) {
-               const res = await uploadUserFile(user.uid, itemImage, 'marketplace', '', `Product: ${newItem.title}`);
-               imageUrl = res.file_url;
+          let imageUrls: string[] = [];
+          if (itemImages.length > 0) {
+               const uploadPromises = itemImages.map((file, index) => 
+                   uploadUserFile(user.uid!, file, 'marketplace', '', `Product: ${newItem.title} ${index + 1}`)
+               );
+               const results = await Promise.all(uploadPromises);
+               imageUrls = results.map(res => res.file_url);
           }
 
           const productData = {
               title: newItem.title,
               category: newItem.category,
               price: Number(newItem.price),
-              usage_instructions: newItem.usage_instructions, // Description
+              usage_instructions: newItem.usage_instructions,
               storage_recommendations: newItem.storage_recommendations,
               location_name: newItem.location_name,
               location_lat: newItem.location_lat,
               location_lng: newItem.location_lng,
-              image_urls: imageUrl ? [imageUrl] : [],
+              image_urls: imageUrls,
               user_id: user.uid,
               seller_name: user.name,
               seller_email: user.email,
@@ -421,12 +447,25 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
       setIsSubmitting(true);
       try {
-          let imageUrl = newItem.image_urls?.[0]; // Keep existing by default
+          // Default to existing images if no new ones are uploaded
+          let imageUrls = newItem.image_urls || []; 
 
-          if (itemImage) {
-               const res = await uploadUserFile(user.uid, itemImage, 'marketplace', '', `Product Update: ${newItem.title}`);
-               imageUrl = res.file_url;
+          // If user added new images, upload them
+          if (itemImages.length > 0) {
+               // NOTE: In a real app you might want to decide if you Append or Replace.
+               // Here we replace if new files are selected to simplify logic, or append?
+               // Let's adopt a Replace strategy if files are present in the upload queue for this MVP editor
+               // OR: We merge them. Let's merge for better UX if possible, but complexity is higher.
+               // Simpler: If new files uploaded, we add them to the list.
+               
+               const uploadPromises = itemImages.map((file, index) => 
+                   uploadUserFile(user.uid!, file, 'marketplace', '', `Product Update: ${newItem.title} ${index + 1}`)
+               );
+               const results = await Promise.all(uploadPromises);
+               const newUrls = results.map(res => res.file_url);
+               imageUrls = [...imageUrls, ...newUrls]; 
           }
+          // Note: Removing images isn't fully supported in this edit flow yet, only adding.
 
           const updates = {
               title: newItem.title,
@@ -437,7 +476,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
               location_name: newItem.location_name,
               location_lat: newItem.location_lat,
               location_lng: newItem.location_lng,
-              image_urls: imageUrl ? [imageUrl] : []
+              image_urls: imageUrls
           };
 
           const { error } = await supabase.from('marketplace').update(updates).eq('id', newItem.id);
@@ -468,7 +507,9 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
   const openEditModal = (item: MarketplaceItem) => {
       setNewItem(item);
-      setImagePreview(item.image_urls?.[0] || null);
+      // Pre-populate previews with existing URLs so user sees them
+      setImagePreviews(item.image_urls || []);
+      // We don't populate 'itemImages' (Files) because we can't create File objects from URLs
       setIsEditMode(true);
       setShowAddModal(true);
   };
@@ -560,6 +601,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                  </button>
                              )}
                         </div>
+                        {item.image_urls && item.image_urls.length > 1 && (
+                            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
+                                +{item.image_urls.length - 1} more
+                            </div>
+                        )}
                         <div className="absolute bottom-2 left-2">
                              <span className="bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
                                  {item.category}
@@ -801,13 +847,28 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                            </div>
                        </div>
                        <div>
-                           <label className="text-sm font-medium text-gray-700 block mb-1">Image</label>
-                           <div className="flex items-center gap-4">
-                               <div className="w-16 h-16 bg-gray-100 rounded border flex items-center justify-center overflow-hidden">
-                                   {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <TagIcon className="w-6 h-6 text-gray-300" />}
+                           <label className="text-sm font-medium text-gray-700 block mb-1">Images</label>
+                           <div className="flex flex-col gap-2">
+                               <div className="flex items-center gap-4">
+                                   <Button type="button" onClick={() => fileInputRef.current?.click()} className="bg-gray-100 !text-gray-700 hover:bg-gray-200 border-gray-300 w-full flex justify-center"><UploadIcon className="w-4 h-4 mr-2" /> Select Photos</Button>
+                                   <input type="file" multiple ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
                                </div>
-                               <Button type="button" onClick={() => fileInputRef.current?.click()} className="bg-gray-100 !text-gray-700 hover:bg-gray-200 border-gray-300">Upload Photo</Button>
-                               <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
+                               
+                               {/* Image Previews */}
+                               {imagePreviews.length > 0 && (
+                                   <div className="grid grid-cols-4 gap-2 mt-2">
+                                       {imagePreviews.map((src, idx) => (
+                                           <div key={idx} className="relative w-16 h-16 bg-gray-100 rounded border flex items-center justify-center overflow-hidden group">
+                                               <img src={src} className="w-full h-full object-cover" alt={`Preview ${idx}`} />
+                                               {!isEditMode || itemImages.length > 0 ? ( // Allow removal if newly added or not strictly locked
+                                                   <button type="button" onClick={() => removeImage(idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-bl p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                                       <XIcon className="w-3 h-3" />
+                                                   </button>
+                                               ) : null}
+                                           </div>
+                                       ))}
+                                   </div>
+                               )}
                            </div>
                        </div>
                        <Button type="submit" isLoading={isSubmitting} className="w-full bg-purple-600 hover:bg-purple-700">{isEditMode ? 'Save Changes' : 'List Item'}</Button>

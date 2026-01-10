@@ -1,12 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { EquipmentType, EquipmentItem, Message, User, Inquiry } from '../types';
+import { EquipmentType, EquipmentItem, Message, User, Inquiry, View } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
 import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, MailIcon, GridIcon, ShieldCheckIcon, StarIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { fileToDataUri } from '../utils';
 import { supabase } from '../services/supabase';
+import { uploadUserFile } from '../services/storageService';
 import { useGeolocation } from '../hooks/useGeolocation';
 
 interface ChatContext {
@@ -19,10 +20,11 @@ interface ChatContext {
 
 interface EquipmentRentalProps {
     user: User | null;
+    setActiveView: (view: View) => void;
     onRequireLogin: () => void;
 }
 
-const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin }) => {
+const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, onRequireLogin }) => {
   const [items, setItems] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -57,8 +59,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       owner: ''
   });
   
-  const [itemImagePreview, setItemImagePreview] = useState<string | null>(null);
-  const [itemImageFile, setItemImageFile] = useState<File | null>(null);
+  // Multiple Image State
+  const [itemImages, setItemImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
@@ -132,10 +135,16 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       }
   }, [selectedItem]);
 
+  // Convert single image to array for slideshow consistency (future-proof)
+  const getSelectedImages = () => {
+      if (!selectedItem) return [];
+      if (selectedItem.image_urls && selectedItem.image_urls.length > 0) return selectedItem.image_urls;
+      if (selectedItem.image_url) return [selectedItem.image_url];
+      return [];
+  };
+
   useEffect(() => {
-      // Logic supports array of images if EquipmentItem type is extended in future.
-      // Currently maps single image_url to array.
-      const images = selectedItem?.image_url ? [selectedItem.image_url] : [];
+      const images = getSelectedImages();
       if (images.length <= 1) return;
 
       const interval = setInterval(() => {
@@ -150,10 +159,12 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
     if (!chatContext?.id || !isChatVisible || !user?.uid) return;
 
     const fetchMessages = async () => {
-        const { data, error } = await supabase
+        // Fetch message where item_id matches AND (sender is me OR receiver is me)
+        const { data } = await supabase
             .from('chats')
             .select('*')
             .eq('item_id', chatContext.id)
+            .or(`sender_id.eq.${user.uid},receiver_id.eq.${user.uid}`)
             .order('created_at', { ascending: true });
         
         if (data) {
@@ -182,14 +193,21 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
             }, 
             (payload) => {
                 const newRecord = payload.new;
-                const newMessage: Message = {
-                    id: newRecord.id,
-                    sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
-                    text: newRecord.message_text,
-                    timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                };
+                
+                // IMPORTANT: Filter messages relevant to this specific conversation
+                const isRelevant = 
+                    (newRecord.sender_id === user.uid) || 
+                    (newRecord.receiver_id === user.uid);
 
-                setMessages((prev) => [...prev, newMessage]);
+                if (isRelevant) {
+                    const newMessage: Message = {
+                        id: newRecord.id,
+                        sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
+                        text: newRecord.message_text,
+                        timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    };
+                    setMessages((prev) => [...prev, newMessage]);
+                }
             }
         )
         .subscribe();
@@ -382,16 +400,24 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          if (file.size > 4 * 1024 * 1024) {
-              addNotification({ type: 'rental', title: 'Error', message: 'Image size must be less than 4MB.', view: 'RENTAL' });
-              return;
+      if (e.target.files) {
+          const filesArray: File[] = Array.from(e.target.files);
+          const validFiles = filesArray.filter(f => f.size <= 4 * 1024 * 1024);
+          
+          if (validFiles.length !== filesArray.length) {
+             alert("Some files were skipped because they exceed 4MB.");
           }
-          setItemImageFile(file);
-          const preview = await fileToDataUri(file);
-          setItemImagePreview(preview);
+          
+          const newPreviews = await Promise.all(validFiles.map(fileToDataUri));
+          
+          setItemImages(prev => [...prev, ...validFiles]);
+          setImagePreviews(prev => [...prev, ...newPreviews]);
       }
+  };
+
+  const removeImage = (index: number) => {
+      setItemImages(prev => prev.filter((_, i) => i !== index));
+      setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleUseMyLocation = (e: React.MouseEvent) => {
@@ -417,26 +443,19 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       
       setIsSubmitting(true);
       try {
-          let imageUrl = '';
+          let imageUrls: string[] = [];
+          let mainImageUrl = '';
+
           const { data: { user: authUser } } = await supabase.auth.getUser();
           const userId = authUser?.id || user.uid;
 
-          if (itemImageFile) {
-              const fileExt = itemImageFile.name.split('.').pop();
-              const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-              const filePath = `rental/${fileName}`;
-
-              const { error: uploadError } = await supabase.storage
-                  .from('user_uploads')
-                  .upload(filePath, itemImageFile);
-
-              if (uploadError) throw uploadError;
-
-              const { data: urlData } = supabase.storage
-                  .from('user_uploads')
-                  .getPublicUrl(filePath);
-              
-              imageUrl = urlData.publicUrl;
+          if (itemImages.length > 0) {
+              const uploadPromises = itemImages.map((file, index) => 
+                  uploadUserFile(userId, file, 'rental', '', `Rental: ${currentItem.name} ${index + 1}`)
+              );
+              const results = await Promise.all(uploadPromises);
+              imageUrls = results.map(res => res.file_url);
+              mainImageUrl = imageUrls[0]; // Set first image as main
           }
 
           const newItem = {
@@ -447,7 +466,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
               location_lng: currentItem.location_lng ?? null,
               price_per_day: isNaN(Number(currentItem.price_per_day)) ? 0 : Number(currentItem.price_per_day),
               description: currentItem.description,
-              image_url: imageUrl,
+              image_url: mainImageUrl, // Backward compatibility
+              image_urls: imageUrls,
               owner: user.name,
               user_id: userId,
               available: true,
@@ -474,24 +494,15 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
         setIsSubmitting(true);
         try {
-            let imageUrl = currentItem.image_url;
+            let imageUrls = currentItem.image_urls || (currentItem.image_url ? [currentItem.image_url] : []);
             
-            if (itemImageFile) {
-                const fileExt = itemImageFile.name.split('.').pop();
-                const fileName = `${Date.now()}_update.${fileExt}`;
-                const filePath = `rental/${fileName}`;
-
-                const { error: uploadError } = await supabase.storage
-                    .from('user_uploads')
-                    .upload(filePath, itemImageFile);
-
-                if (uploadError) throw uploadError;
-
-                const { data: urlData } = supabase.storage
-                    .from('user_uploads')
-                    .getPublicUrl(filePath);
-                
-                imageUrl = urlData.publicUrl;
+            if (itemImages.length > 0) {
+                const uploadPromises = itemImages.map((file, index) => 
+                    uploadUserFile(user.uid!, file, 'rental', '', `Rental Update: ${currentItem.name} ${index + 1}`)
+                );
+                const results = await Promise.all(uploadPromises);
+                const newUrls = results.map(res => res.file_url);
+                imageUrls = [...imageUrls, ...newUrls];
             }
 
             const updates = {
@@ -502,7 +513,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                 location_lng: currentItem.location_lng ?? null,
                 price_per_day: isNaN(Number(currentItem.price_per_day)) ? 0 : Number(currentItem.price_per_day),
                 description: currentItem.description,
-                image_url: imageUrl,
+                image_url: imageUrls.length > 0 ? imageUrls[0] : '', // Ensure main image is updated
+                image_urls: imageUrls
             };
 
             const { error } = await supabase.from('equipment').update(updates).eq('id', currentItem.id);
@@ -536,7 +548,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
 
   const openEditModal = (item: EquipmentItem) => {
       setCurrentItem(item);
-      setItemImagePreview(item.image_url || null);
+      // Pre-populate previews
+      const existingImages = item.image_urls && item.image_urls.length > 0 ? item.image_urls : (item.image_url ? [item.image_url] : []);
+      setImagePreviews(existingImages);
       setIsEditMode(true);
       setIsFormVisible(true);
   };
@@ -552,8 +566,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
           description: '',
           owner: ''
       });
-      setItemImageFile(null);
-      setItemImagePreview(null);
+      setItemImages([]);
+      setImagePreviews([]);
       setIsEditMode(false);
   };
 
@@ -561,8 +575,14 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
       return user && (user.uid === item.user_id || user.type === 'admin');
   };
 
-  // Convert single image to array for slideshow consistency (future-proof)
-  const getSelectedImages = () => selectedItem?.image_url ? [selectedItem.image_url] : [];
+  const goToMyEquipment = () => {
+      if(!user) {
+          onRequireLogin();
+          return;
+      }
+      sessionStorage.setItem('profile_tab', 'LISTINGS');
+      setActiveView('PROFILE');
+  }
 
   return (
     <div className="space-y-6">
@@ -576,9 +596,16 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     <p className="text-orange-700 font-medium">Rent tractors, harvesters, and tools.</p>
                 </div>
             </div>
-            <Button onClick={() => { resetForm(); setIsFormVisible(true); }}>
-                <PlusIcon className="w-5 h-5 mr-2" /> List Equipment
-            </Button>
+            <div className="flex gap-2">
+                {user && (
+                    <Button onClick={goToMyEquipment} className="bg-white !text-indigo-700 border border-indigo-200 hover:bg-indigo-50 shadow-sm">
+                        <TractorIcon className="w-5 h-5 mr-2" /> My Equipment
+                    </Button>
+                )}
+                <Button onClick={() => { resetForm(); setIsFormVisible(true); }}>
+                    <PlusIcon className="w-5 h-5 mr-2" /> List Equipment
+                </Button>
+            </div>
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4">
@@ -612,57 +639,67 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                     No equipment found matching your search.
                 </div>
             ) : (
-                filteredItems.map(item => (
-                    <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
-                        <div 
-                            className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-200 group overflow-hidden cursor-pointer"
-                            onClick={() => setSelectedItem(item)}
-                        >
-                             <img 
-                                src={item.image_url || 'https://placehold.co/600x400?text=Equipment'} 
-                                alt={item.name} 
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                                onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.onerror = null;
-                                    target.src = 'https://placehold.co/600x400?text=No+Image';
-                                }}
-                             />
-                             {canManage(item) && (
-                                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                     <button onClick={() => openEditModal(item)} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4" /></button>
-                                     <button onClick={() => { setItemToDelete(item); setIsDeleteModalVisible(true); }} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-red-600 shadow-sm"><TrashIcon className="w-4 h-4" /></button>
-                                 </div>
-                             )}
-                        </div>
-                        <div className="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{item.name}</h3>
-                                <p className="text-xs text-gray-500 flex items-center gap-1">
-                                    <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{item.type}</span>
-                                    <span className="truncate max-w-[120px]">• {item.location}</span>
-                                </p>
+                filteredItems.map(item => {
+                    const displayImage = item.image_urls?.[0] || item.image_url || 'https://placehold.co/600x400?text=Equipment';
+                    const moreImagesCount = (item.image_urls?.length || 0) + (item.image_url && !item.image_urls ? 1 : 0) - 1;
+
+                    return (
+                        <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
+                            <div 
+                                className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-200 group overflow-hidden cursor-pointer"
+                                onClick={() => setSelectedItem(item)}
+                            >
+                                <img 
+                                    src={displayImage} 
+                                    alt={item.name} 
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.onerror = null;
+                                        target.src = 'https://placehold.co/600x400?text=No+Image';
+                                    }}
+                                />
+                                {moreImagesCount > 0 && (
+                                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
+                                        +{moreImagesCount} more
+                                    </div>
+                                )}
+                                {canManage(item) && (
+                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                        <button onClick={() => openEditModal(item)} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => { setItemToDelete(item); setIsDeleteModalVisible(true); }} className="p-1.5 bg-white rounded-full text-gray-600 hover:text-red-600 shadow-sm"><TrashIcon className="w-4 h-4" /></button>
+                                    </div>
+                                )}
                             </div>
-                            <p className="font-bold text-indigo-700 whitespace-nowrap">GHS {item.price_per_day}<span className="text-xs text-gray-500 font-normal">/day</span></p>
-                        </div>
-                        {item.description && <p className="text-sm text-gray-600 mb-4 line-clamp-2">{item.description}</p>}
-                        
-                        <div className="mt-auto pt-2 grid grid-cols-2 gap-2">
-                            {canManage(item) ? (
-                                <div className="text-xs text-gray-400 italic w-full text-center py-2 bg-gray-50 rounded col-span-2">Your Listing</div>
-                            ) : (
-                                <>
-                                    <Button onClick={() => setSelectedItem(item)} className="text-xs py-2 bg-gray-100 !text-gray-900 hover:bg-gray-200">
-                                        Details
-                                    </Button>
-                                    <Button onClick={() => handleOpenInquiry(item)} className="text-xs py-2 bg-indigo-600 hover:bg-indigo-700">
-                                        <MailIcon className="w-4 h-4 mr-1 inline" /> Inquiry
-                                    </Button>
-                                </>
-                            )}
-                        </div>
-                    </Card>
-                ))
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{item.name}</h3>
+                                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                                        <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{item.type}</span>
+                                        <span className="truncate max-w-[120px]">• {item.location}</span>
+                                    </p>
+                                </div>
+                                <p className="font-bold text-indigo-700 whitespace-nowrap">GHS {item.price_per_day}<span className="text-xs text-gray-500 font-normal">/day</span></p>
+                            </div>
+                            {item.description && <p className="text-sm text-gray-600 mb-4 line-clamp-2">{item.description}</p>}
+                            
+                            <div className="mt-auto pt-2 grid grid-cols-2 gap-2">
+                                {canManage(item) ? (
+                                    <div className="text-xs text-gray-400 italic w-full text-center py-2 bg-gray-50 rounded col-span-2">Your Listing</div>
+                                ) : (
+                                    <>
+                                        <Button onClick={() => setSelectedItem(item)} className="text-xs py-2 bg-gray-100 !text-gray-900 hover:bg-gray-200">
+                                            Details
+                                        </Button>
+                                        <Button onClick={() => handleOpenInquiry(item)} className="text-xs py-2 bg-indigo-600 hover:bg-indigo-700">
+                                            <MailIcon className="w-4 h-4 mr-1 inline" /> Inquiry
+                                        </Button>
+                                    </>
+                                )}
+                            </div>
+                        </Card>
+                    );
+                })
             )}
         </div>
 
@@ -860,13 +897,26 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                             <textarea value={currentItem.description} onChange={e => setCurrentItem({...currentItem, description: e.target.value})} className="w-full border border-gray-300 p-2 rounded !bg-white !text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" rows={3}></textarea>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Image</label>
-                            <div className="flex items-center gap-4 mt-1">
-                                <div className="w-20 h-20 bg-gray-100 rounded border flex items-center justify-center overflow-hidden">
-                                    {itemImagePreview ? <img src={itemImagePreview} className="w-full h-full object-cover" alt="Preview" /> : <TractorIcon className="w-8 h-8 text-gray-300" />}
+                            <label className="block text-sm font-medium text-gray-700">Images</label>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-4">
+                                    <Button type="button" onClick={() => fileInputRef.current?.click()} className="bg-gray-100 !text-gray-700 hover:bg-gray-200 border-gray-300 w-full flex justify-center"><UploadIcon className="w-4 h-4 mr-2" /> Select Photos</Button>
+                                    <input type="file" multiple ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
                                 </div>
-                                <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
-                                <Button type="button" onClick={() => fileInputRef.current?.click()} className="bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"><UploadIcon className="w-4 h-4 mr-2" /> Upload</Button>
+                                {imagePreviews.length > 0 && (
+                                   <div className="grid grid-cols-4 gap-2 mt-2">
+                                       {imagePreviews.map((src, idx) => (
+                                           <div key={idx} className="relative w-16 h-16 bg-gray-100 rounded border flex items-center justify-center overflow-hidden group">
+                                               <img src={src} className="w-full h-full object-cover" alt={`Preview ${idx}`} />
+                                               {!isEditMode || itemImages.length > 0 ? (
+                                                   <button type="button" onClick={() => removeImage(idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-bl p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                                       <XIcon className="w-3 h-3" />
+                                                   </button>
+                                               ) : null}
+                                           </div>
+                                       ))}
+                                   </div>
+                                )}
                             </div>
                         </div>
                         <div className="flex gap-2 pt-4">

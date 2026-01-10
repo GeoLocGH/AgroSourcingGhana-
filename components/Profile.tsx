@@ -125,6 +125,46 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       return () => { subscription.unsubscribe(); };
   }, [user?.uid]);
 
+  // Realtime subscription for Chat Modal
+  useEffect(() => {
+    if (!isChatOpen || !activeChatContext || !user?.uid) return;
+
+    const channel = supabase
+      .channel(`profile_chat_${activeChatContext.itemId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chats',
+          filter: `item_id=eq.${activeChatContext.itemId}`
+        },
+        (payload) => {
+          const newRecord = payload.new;
+          // Security/Relevance check
+          const isRelevant = 
+             (newRecord.sender_id === user.uid && newRecord.receiver_id === activeChatContext.otherUserId) ||
+             (newRecord.sender_id === activeChatContext.otherUserId && newRecord.receiver_id === user.uid);
+
+          if (isRelevant) {
+             const newMessage: Message = {
+                id: newRecord.id,
+                sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
+                text: newRecord.message_text,
+                timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+             };
+             setChatMessages(prev => {
+                 if (prev.some(m => m.id === newMessage.id)) return prev;
+                 return [...prev, newMessage];
+             });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [isChatOpen, activeChatContext, user?.uid]);
+
   // Slideshow Logic for Details Modal
   useEffect(() => {
       if (selectedItem) {
@@ -562,7 +602,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                                     <p className="text-sm text-gray-600 truncate max-w-xs">{chat.last_message}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="text-xs text-gray-400">{new Date(chat.last_time).toLocaleDateString()}</p>
+                                                    <span className="text-xs text-gray-400">{new Date(chat.last_time).toLocaleDateString()}</span>
                                                     <Button className="ml-2 text-xs py-1 px-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-none shadow-none">Reply</Button>
                                                 </div>
                                             </div>
@@ -655,7 +695,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                               <div className="p-2 bg-gray-100 rounded text-gray-500"><PaperClipIcon className="w-5 h-5" /></div>
                                               <div>
                                                   <p className="text-sm font-medium text-gray-900 truncate">{f.file_name}</p>
-                                                  <p className="text-xs text-gray-500 capitalize">{f.context.replace('-', ' ')} • {new Date(f.createdAt).toLocaleDateString()}</p>
+                                                  <p className="text-xs text-gray-500 capitalize">{f.context.replace('-', ' ')} • {new Date(f.created_at).toLocaleDateString()}</p>
                                               </div>
                                           </div>
                                           <div className="flex gap-2">

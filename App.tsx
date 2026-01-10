@@ -299,7 +299,7 @@ const App: React.FC = () => {
       case 'FORUM':
         return <CommunityForum user={user} />;
       case 'RENTAL':
-        return <EquipmentRental user={user} onRequireLogin={handleRequireLogin} />;
+        return <EquipmentRental user={user} setActiveView={setActiveView} onRequireLogin={handleRequireLogin} />;
       case 'WALLET':
         return <DigitalWallet user={user} />;
       case 'ORDERS':
