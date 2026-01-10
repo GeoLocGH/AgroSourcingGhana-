@@ -330,7 +330,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
 
       {/* Ad Banner Card */}
       {adBanners.length > 0 && (
-          <Card className="flex flex-col items-center justify-center text-center p-0 overflow-hidden relative min-h-[200px] border-2 border-yellow-500 hover:border-yellow-400 mb-6 bg-gray-900 shadow-xl shadow-yellow-900/20">
+          <Card className="flex flex-col items-center justify-center text-center p-0 overflow-hidden relative min-h-[200px] border-2 border-yellow-500 hover:border-yellow-400 mb-6 bg-gray-900 shadow-xl shadow-yellow-900/20 transition-all">
               <span className="absolute top-2 right-2 text-[10px] text-yellow-500 border border-yellow-500 bg-gray-900/90 px-1.5 rounded z-20 shadow-sm backdrop-blur-sm font-bold tracking-wide">Sponsored</span>
               {adBanners.map((ad, idx) => (
                   <div 
