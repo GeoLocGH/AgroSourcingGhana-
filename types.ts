@@ -264,3 +264,12 @@ export interface AdBanner {
   link?: string;
   isActive?: boolean;
 }
+
+export interface Review {
+    id: number;
+    reviewer_id: string;
+    target_user_id: string;
+    rating: number;
+    comment: string;
+    created_at: string;
+}

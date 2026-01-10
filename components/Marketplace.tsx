@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { ShoppingCartIcon, SearchIcon, PlusIcon, MessageSquareIcon, XIcon, UploadIcon, PhoneIcon, MailIcon, HeartIcon, TagIcon, PencilIcon, TrashIcon, GridIcon, ShieldCheckIcon } from './common/icons';
+import { ShoppingCartIcon, SearchIcon, PlusIcon, MessageSquareIcon, XIcon, UploadIcon, PhoneIcon, MailIcon, HeartIcon, TagIcon, PencilIcon, TrashIcon, GridIcon, ShieldCheckIcon, StarIcon } from './common/icons';
 import { supabase } from '../services/supabase';
 import { uploadUserFile } from '../services/storageService';
 import { fileToDataUri } from '../utils';
@@ -36,6 +36,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const [currentImageIndex, setCurrentImageIndex] = useState(0); // For Slideshow
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Rating State
+  const [sellerStats, setSellerStats] = useState<{ avg: number, count: number } | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
   
   // Add Item Form State
   const [newItem, setNewItem] = useState<Partial<MarketplaceItem>>({
@@ -81,10 +87,13 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     return () => { subscription.unsubscribe(); };
   }, []);
 
-  // Reset slideshow when details modal opens
+  // Reset slideshow and fetch rating when details modal opens
   useEffect(() => {
       if (detailsItem) {
           setCurrentImageIndex(0);
+          fetchSellerRating(detailsItem.user_id);
+      } else {
+          setSellerStats(null);
       }
   }, [detailsItem]);
 
@@ -129,6 +138,61 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
           console.error("Error fetching marketplace items:", err);
       } finally {
           setLoading(false);
+      }
+  };
+
+  const fetchSellerRating = async (sellerId: string) => {
+      if (!sellerId) return;
+      try {
+          const { data, error } = await supabase
+              .from('user_reviews')
+              .select('rating')
+              .eq('target_user_id', sellerId);
+          
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+              const total = data.reduce((acc, curr) => acc + curr.rating, 0);
+              setSellerStats({
+                  avg: total / data.length,
+                  count: data.length
+              });
+          } else {
+              setSellerStats({ avg: 0, count: 0 });
+          }
+      } catch (err) {
+          console.error("Error fetching rating", err);
+          setSellerStats(null);
+      }
+  };
+
+  const handleSubmitRating = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user?.uid || !detailsItem) return;
+      
+      setIsSubmitting(true);
+      try {
+          const { error } = await supabase.from('user_reviews').insert([{
+              reviewer_id: user.uid,
+              target_user_id: detailsItem.user_id,
+              item_id: detailsItem.id,
+              context: 'marketplace',
+              rating: ratingValue,
+              comment: ratingComment
+          }]);
+
+          if (error) throw error;
+
+          addNotification({ type: 'market', title: 'Review Submitted', message: 'Thank you for your feedback!', view: 'MARKETPLACE' });
+          setShowRatingModal(false);
+          setRatingValue(0);
+          setRatingComment('');
+          fetchSellerRating(detailsItem.user_id); // Refresh stats
+      } catch (err: any) {
+          console.error("Review Error:", err);
+          addNotification({ type: 'market', title: 'Error', message: 'Could not submit review.', view: 'MARKETPLACE' });
+      } finally {
+          setIsSubmitting(false);
       }
   };
 
@@ -422,14 +486,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
   return (
     <div className="space-y-6">
-       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-           <div className="flex items-center gap-3">
-               <div className="p-3 bg-purple-100 rounded-full text-purple-700">
-                   <ShoppingCartIcon className="w-8 h-8" />
+       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+           <div className="flex items-center gap-4">
+               <div className="p-4 bg-green-100 rounded-full text-green-800 shadow-sm border border-green-200">
+                   <ShoppingCartIcon className="w-10 h-10" />
                </div>
                <div>
-                   <h2 className="text-2xl font-bold text-gray-800">Marketplace</h2>
-                   <p className="text-gray-600">Buy and sell agricultural products.</p>
+                   <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Marketplace</h2>
+                   <p className="text-lg text-orange-700 font-medium">Buy and sell agricultural products.</p>
                </div>
            </div>
            <div className="flex gap-2">
@@ -613,11 +677,20 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                        </div>
 
                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                           <h4 className="font-bold text-sm text-blue-900 mb-2 flex items-center">
-                               Seller Information
-                               {detailsItem.merchant_id && <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />}
-                           </h4>
-                           <div className="grid grid-cols-2 gap-4 text-sm">
+                           <div className="flex justify-between items-center mb-2">
+                               <h4 className="font-bold text-sm text-blue-900 flex items-center">
+                                   Seller Information
+                                   {detailsItem.merchant_id && <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />}
+                               </h4>
+                               {sellerStats && (
+                                   <div className="flex items-center gap-1 bg-white px-2 py-1 rounded shadow-sm border border-blue-100">
+                                       <StarIcon className="w-4 h-4 text-yellow-400 fill-current" />
+                                       <span className="text-sm font-bold text-gray-800">{sellerStats.avg.toFixed(1)}</span>
+                                       <span className="text-xs text-gray-500">({sellerStats.count})</span>
+                                   </div>
+                               )}
+                           </div>
+                           <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                                <div>
                                    <span className="block text-xs text-blue-700 uppercase">Name</span>
                                    <span className="font-medium text-blue-900">{detailsItem.seller_name}</span>
@@ -627,6 +700,16 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                    <span className="font-medium text-blue-900">{detailsItem.seller_phone || 'Hidden'}</span>
                                </div>
                            </div>
+                           
+                           {/* Rate Seller Button */}
+                           {user && user.uid !== detailsItem.user_id && (
+                               <button 
+                                   onClick={() => setShowRatingModal(true)}
+                                   className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                               >
+                                   Rate Seller
+                               </button>
+                           )}
                        </div>
 
                        <Button onClick={() => { 
@@ -636,6 +719,42 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                        }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
                            <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
                        </Button>
+                   </div>
+               </Card>
+           </div>
+       )}
+
+       {/* Rating Modal */}
+       {showRatingModal && detailsItem && (
+           <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
+               <Card className="w-full max-w-sm text-center">
+                   <h3 className="text-lg font-bold text-gray-900 mb-2">Rate {detailsItem.seller_name}</h3>
+                   <p className="text-sm text-gray-500 mb-4">How was your experience?</p>
+                   
+                   <div className="flex justify-center gap-2 mb-4">
+                       {[1, 2, 3, 4, 5].map((star) => (
+                           <button 
+                               key={star} 
+                               type="button" 
+                               onClick={() => setRatingValue(star)}
+                               className="focus:outline-none transition-transform hover:scale-110"
+                           >
+                               <StarIcon className={`w-8 h-8 ${star <= ratingValue ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} />
+                           </button>
+                       ))}
+                   </div>
+                   
+                   <textarea 
+                       value={ratingComment} 
+                       onChange={e => setRatingComment(e.target.value)} 
+                       className="w-full border p-2 rounded mb-4 text-sm" 
+                       placeholder="Optional comment..." 
+                       rows={3} 
+                   />
+                   
+                   <div className="flex gap-2">
+                       <Button onClick={() => setShowRatingModal(false)} className="flex-1 bg-gray-200 !text-gray-900">Cancel</Button>
+                       <Button onClick={handleSubmitRating} isLoading={isSubmitting} disabled={ratingValue === 0} className="flex-1">Submit</Button>
                    </div>
                </Card>
            </div>

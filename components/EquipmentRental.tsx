@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { EquipmentType, EquipmentItem, Message, User, Inquiry } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, MailIcon, GridIcon, ShieldCheckIcon } from './common/icons';
+import { TractorIcon, SearchIcon, MessageSquareIcon, XIcon, PlusIcon, PencilIcon, TrashIcon, Spinner, UploadIcon, MailIcon, GridIcon, ShieldCheckIcon, StarIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { fileToDataUri } from '../utils';
 import { supabase } from '../services/supabase';
@@ -34,6 +34,13 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   // Modal State for Details
   const [selectedItem, setSelectedItem] = useState<EquipmentItem | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Rating State
+  const [ownerStats, setOwnerStats] = useState<{ avg: number, count: number } | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
   // Form State
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -119,6 +126,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
   useEffect(() => {
       if (selectedItem) {
           setCurrentImageIndex(0);
+          fetchOwnerRating(selectedItem.user_id);
+      } else {
+          setOwnerStats(null);
       }
   }, [selectedItem]);
 
@@ -194,6 +204,61 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
     const matchesType = selectedType === 'All' || item.type === selectedType;
     return matchesSearch && matchesType;
   });
+
+  const fetchOwnerRating = async (ownerId: string) => {
+      if (!ownerId) return;
+      try {
+          const { data, error } = await supabase
+              .from('user_reviews')
+              .select('rating')
+              .eq('target_user_id', ownerId);
+          
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+              const total = data.reduce((acc, curr) => acc + curr.rating, 0);
+              setOwnerStats({
+                  avg: total / data.length,
+                  count: data.length
+              });
+          } else {
+              setOwnerStats({ avg: 0, count: 0 });
+          }
+      } catch (err) {
+          console.error("Error fetching rating", err);
+          setOwnerStats(null);
+      }
+  };
+
+  const handleSubmitRating = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user?.uid || !selectedItem) return;
+      
+      setIsSubmittingRating(true);
+      try {
+          const { error } = await supabase.from('user_reviews').insert([{
+              reviewer_id: user.uid,
+              target_user_id: selectedItem.user_id,
+              item_id: String(selectedItem.id),
+              context: 'rental',
+              rating: ratingValue,
+              comment: ratingComment
+          }]);
+
+          if (error) throw error;
+
+          addNotification({ type: 'rental', title: 'Review Submitted', message: 'Thank you for your feedback!', view: 'RENTAL' });
+          setShowRatingModal(false);
+          setRatingValue(0);
+          setRatingComment('');
+          fetchOwnerRating(selectedItem.user_id);
+      } catch (err: any) {
+          console.error("Review Error:", err);
+          addNotification({ type: 'rental', title: 'Error', message: 'Could not submit review.', view: 'RENTAL' });
+      } finally {
+          setIsSubmittingRating(false);
+      }
+  };
 
   const handleOpenInquiry = (item: EquipmentItem) => {
       setInquiryItem(item);
@@ -503,12 +568,12 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
     <div className="space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-100 rounded-full text-indigo-700">
+                <div className="p-3 bg-green-100 rounded-full text-green-800">
                     <TractorIcon className="w-8 h-8" />
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Equipment Rental</h2>
-                    <p className="text-gray-600">Rent tractors, harvesters, and tools.</p>
+                    <h2 className="text-2xl font-bold text-white">Equipment Rental</h2>
+                    <p className="text-orange-700 font-medium">Rent tractors, harvesters, and tools.</p>
                 </div>
             </div>
             <Button onClick={() => { resetForm(); setIsFormVisible(true); }}>
@@ -664,14 +729,33 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                        </div>
 
                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                           <h4 className="font-bold text-sm text-blue-900 mb-2 flex items-center">
-                               Owner Information
-                               <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />
-                           </h4>
-                           <div className="text-sm">
+                           <div className="flex justify-between items-center mb-2">
+                               <h4 className="font-bold text-sm text-blue-900 flex items-center">
+                                   Owner Information
+                                   <ShieldCheckIcon className="w-4 h-4 ml-1 text-blue-600" />
+                               </h4>
+                               {ownerStats && (
+                                   <div className="flex items-center gap-1 bg-white px-2 py-1 rounded shadow-sm border border-blue-100">
+                                       <StarIcon className="w-4 h-4 text-yellow-400 fill-current" />
+                                       <span className="text-sm font-bold text-gray-800">{ownerStats.avg.toFixed(1)}</span>
+                                       <span className="text-xs text-gray-500">({ownerStats.count})</span>
+                                   </div>
+                               )}
+                           </div>
+                           <div className="text-sm mb-3">
                                <span className="block text-xs text-blue-700 uppercase">Name</span>
                                <span className="font-medium text-blue-900">{selectedItem.owner}</span>
                            </div>
+                           
+                           {/* Rate Owner Button */}
+                           {user && user.uid !== selectedItem.user_id && (
+                               <button 
+                                   onClick={() => setShowRatingModal(true)}
+                                   className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                               >
+                                   Rate Owner
+                               </button>
+                           )}
                        </div>
 
                        {!canManage(selectedItem) && (
@@ -679,11 +763,47 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, onRequireLogin 
                                <Button onClick={() => { setSelectedItem(null); handleOpenInquiry(selectedItem); }} className="bg-indigo-600 hover:bg-indigo-700">
                                    <MailIcon className="w-4 h-4 mr-2" /> Send Inquiry
                                </Button>
-                               <Button onClick={() => { setSelectedItem(null); handleOpenChat(selectedItem); }} className="bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50">
+                               <Button onClick={() => { setSelectedItem(null); handleOpenChat(selectedItem); }} className="bg-green-600 text-white hover:bg-green-700 border-none shadow-md">
                                    <MessageSquareIcon className="w-4 h-4 mr-2" /> Chat Now
                                </Button>
                            </div>
                        )}
+                   </div>
+               </Card>
+           </div>
+       )}
+
+       {/* Rating Modal */}
+       {showRatingModal && selectedItem && (
+           <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
+               <Card className="w-full max-w-sm text-center">
+                   <h3 className="text-lg font-bold text-gray-900 mb-2">Rate {selectedItem.owner}</h3>
+                   <p className="text-sm text-gray-500 mb-4">How was your experience?</p>
+                   
+                   <div className="flex justify-center gap-2 mb-4">
+                       {[1, 2, 3, 4, 5].map((star) => (
+                           <button 
+                               key={star} 
+                               type="button" 
+                               onClick={() => setRatingValue(star)}
+                               className="focus:outline-none transition-transform hover:scale-110"
+                           >
+                               <StarIcon className={`w-8 h-8 ${star <= ratingValue ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} />
+                           </button>
+                       ))}
+                   </div>
+                   
+                   <textarea 
+                       value={ratingComment} 
+                       onChange={e => setRatingComment(e.target.value)} 
+                       className="w-full border p-2 rounded mb-4 text-sm !bg-white !text-gray-900" 
+                       placeholder="Optional comment..." 
+                       rows={3} 
+                   />
+                   
+                   <div className="flex gap-2">
+                       <Button onClick={() => setShowRatingModal(false)} className="flex-1 bg-gray-200 !text-gray-900">Cancel</Button>
+                       <Button onClick={handleSubmitRating} isLoading={isSubmittingRating} disabled={ratingValue === 0} className="flex-1">Submit</Button>
                    </div>
                </Card>
            </div>
