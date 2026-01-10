@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Card from './common/Card';
 import { CloudIcon, TagIcon, BugIcon, ShoppingCartIcon, SproutIcon, UsersIcon, AlertTriangleIcon, HarvesterIcon, WalletIcon, TractorIcon, Spinner, UploadIcon, BanknotesIcon, SearchIcon, GridIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -41,6 +41,27 @@ const DEFAULT_ADS: AdBanner[] = [
     }
 ];
 
+const DEFAULT_PARTNERS = [
+    { 
+        id: 'mofa',
+        type: 'component',
+        render: () => (
+            <div className="flex flex-col items-center justify-center h-full w-full bg-white px-1 select-none pointer-events-none">
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tighter leading-none">MoFA</h1>
+                <p className="text-[6px] sm:text-[7px] font-extrabold text-gray-600 text-center leading-tight mt-0.5 uppercase tracking-wide">
+                    Ministry of Food & Agriculture
+                </p>
+            </div>
+        )
+    },
+    { 
+        id: 'ghana',
+        type: 'image',
+        url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Coat_of_arms_of_Ghana.svg/1200px-Coat_of_arms_of_Ghana.svg.png', 
+        name: 'Ghana' 
+    }
+];
+
 const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   const { addNotification } = useNotifications();
   const { location, error: geoError } = useGeolocation();
@@ -62,6 +83,19 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   // Ad Banner State
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [adBanners, setAdBanners] = useState<AdBanner[]>(DEFAULT_ADS);
+
+  // Partner Logo State
+  const [currentPartnerIndex, setCurrentPartnerIndex] = useState(0);
+
+  // Combine Admin Logo with Default Partners
+  const partners = useMemo(() => {
+      const list: any[] = [...DEFAULT_PARTNERS];
+      if (logoUrl) {
+          // Add Admin uploaded logo to the rotation
+          list.unshift({ id: 'custom', type: 'image', name: 'Featured Partner', url: logoUrl });
+      }
+      return list;
+  }, [logoUrl]);
 
   // Fetch Ads and Settings
   useEffect(() => {
@@ -100,6 +134,15 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
       }, 8000);
       return () => clearInterval(interval);
   }, [adBanners]);
+
+  // Partner rotation effect (5 seconds)
+  useEffect(() => {
+      if (partners.length <= 1) return;
+      const interval = setInterval(() => {
+          setCurrentPartnerIndex((prev) => (prev + 1) % partners.length);
+      }, 5000);
+      return () => clearInterval(interval);
+  }, [partners]);
 
   useEffect(() => {
     // Determine the effective location: GPS object or Manual String
@@ -244,24 +287,43 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Welcome!, Mía Woezɔ̃!, Yɛma Mo Akwaaba!</h2>
            <p className="text-green-100">Access localized tools and real-time market data.</p>
         </div>
-        <div className="flex-shrink-0 bg-white p-2 rounded-lg shadow-md ml-4">
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/png" className="hidden" />
-            <div 
-                className={`h-16 w-32 sm:h-20 sm:w-40 bg-gray-50 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-500 overflow-hidden relative ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-500 hover:bg-green-50' : ''}`}
-                onClick={handlePlaceholderClick}
-                title={user?.type === 'admin' ? "Admin: Click to upload logo" : ""}
-            >
-                {logoUrl ? (
-                    <img src={logoUrl} alt="Dashboard Logo" className={`w-full h-full object-contain ${isUploading ? 'opacity-50' : ''}`} />
-                ) : (
-                    <>
-                        <UploadIcon className="w-6 h-6 mb-1 text-gray-400" />
-                        <span className="text-[10px] font-bold text-gray-400">LOGO HERE (PNG)</span>
-                    </>
-                )}
-                {isUploading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/10"><Spinner /></div>
-                )}
+        <div className="flex-shrink-0 flex flex-col items-center ml-4">
+            <span className="text-[10px] uppercase font-bold text-green-200 mb-1 tracking-wider text-center w-full">Partners:</span>
+            <div className="bg-white p-2 rounded-lg shadow-md">
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/png" className="hidden" />
+                <div 
+                    className={`h-16 w-32 sm:h-20 sm:w-40 bg-gray-50 border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-500 overflow-hidden relative ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-500 hover:bg-green-50' : ''}`}
+                    onClick={handlePlaceholderClick}
+                    title={user?.type === 'admin' ? "Admin: Click to upload custom Partner logo" : ""}
+                >
+                    {partners.map((partner, idx) => (
+                        <div 
+                            key={partner.id || idx}
+                            className={`absolute inset-0 w-full h-full flex items-center justify-center transition-opacity duration-1000 ease-in-out ${idx === currentPartnerIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                        >
+                            {partner.type === 'image' ? (
+                                <img 
+                                    src={partner.url} 
+                                    alt={partner.name} 
+                                    className="w-full h-full object-contain p-1" 
+                                />
+                            ) : (
+                                partner.render()
+                            )}
+                        </div>
+                    ))}
+                    
+                    {partners.length === 0 && !isUploading && (
+                        <>
+                            <UploadIcon className="w-6 h-6 mb-1 text-gray-400" />
+                            <span className="text-[10px] font-bold text-gray-400">LOGO HERE (PNG)</span>
+                        </>
+                    )}
+                    
+                    {isUploading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/10 z-20"><Spinner /></div>
+                    )}
+                </div>
             </div>
         </div>
       </div>
