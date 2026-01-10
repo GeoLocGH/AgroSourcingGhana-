@@ -235,14 +235,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   };
 
   const features = [
-    { title: 'Weather Forecast', description: 'Get hyper-local weather predictions.', icon: <CloudIcon />, view: 'WEATHER', color: 'blue' },
     { title: 'Marketplace', description: 'Find certified seeds, fertilizers, and tools.', icon: <ShoppingCartIcon />, view: 'MARKETPLACE', color: 'purple' },
+    { title: 'Market Prices', description: 'Check daily prices for your crops.', icon: <TagIcon />, view: 'PRICES', color: 'yellow' },
     { title: 'Equipment Rental', description: 'Rent tractors, plows, and more.', icon: <TractorIcon />, view: 'RENTAL', color: 'indigo' },
     { title: 'Community Forum', description: 'Connect with fellow farmers.', icon: <UsersIcon />, view: 'FORUM', color: 'teal' },
     { title: 'Mobile Money & Wallet', description: 'P2P transfers, loans, bills & insurance.', icon: <WalletIcon />, view: 'WALLET', color: 'cyan' },
+    { title: 'Weather Forecast', description: 'Get hyper-local weather predictions.', icon: <CloudIcon />, view: 'WEATHER', color: 'blue' },
     { title: 'Crop Advisory', description: 'Personalized, stage-by-stage guidance.', icon: <SproutIcon />, view: 'ADVISORY', color: 'green' },
     { title: 'Pest Diagnosis', description: 'Identify crop diseases with a photo.', icon: <BugIcon />, view: 'DIAGNOSIS', color: 'red' },
-    { title: 'Market Prices', description: 'Check daily prices for your crops.', icon: <TagIcon />, view: 'PRICES', color: 'yellow' },
   ];
 
   const themeStyles: { [key: string]: { card: string, icon: string } } = {
@@ -330,8 +330,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
 
       {/* Ad Banner Card */}
       {adBanners.length > 0 && (
-          <Card className="flex flex-col items-center justify-center text-center p-0 overflow-hidden relative min-h-[200px] border-2 border-yellow-500 hover:border-yellow-400 mb-6 bg-gray-900 shadow-xl shadow-yellow-900/20 transition-all">
-              <span className="absolute top-2 right-2 text-[10px] text-yellow-500 border border-yellow-500 bg-gray-900/90 px-1.5 rounded z-20 shadow-sm backdrop-blur-sm font-bold tracking-wide">Sponsored</span>
+          <Card className="flex flex-col items-center justify-center text-center p-0 overflow-hidden relative min-h-[200px] border-2 border-orange-700 hover:border-orange-600 mb-6 bg-gray-900 shadow-xl shadow-orange-900/20 transition-all">
+              <span className="absolute top-2 right-2 text-[10px] text-orange-500 border border-orange-500 bg-gray-900/90 px-1.5 rounded z-20 shadow-sm backdrop-blur-sm font-bold tracking-wide">Sponsored</span>
               {adBanners.map((ad, idx) => (
                   <div 
                       key={ad.id} 
@@ -397,15 +397,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
             )}
         </Card>
 
-        {/* Daily Tip Card */}
-        <Card className="flex flex-col items-start p-6 hover:-translate-y-1 !border transition-colors bg-green-50 border-green-100 hover:border-green-300">
-            <div className="p-3 rounded-full bg-green-200 text-green-700 mb-3">
-                <SproutIcon className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">Daily Tip</h3>
-            <p className="mt-2 text-sm text-gray-700 font-medium italic">"{dailyTip}"</p>
-        </Card>
-
          <Card className="sm:col-span-2 lg:col-span-3 !bg-red-50 !border !border-red-200 hover:!border-red-300">
           <div className="flex flex-col gap-4">
               <div className="flex items-start gap-4 border-b border-red-200 pb-4">
@@ -443,6 +434,15 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
                   </div>
               </div>
           </div>
+        </Card>
+
+        {/* Daily Tip Card */}
+        <Card className="flex flex-col items-start p-6 hover:-translate-y-1 !border transition-colors bg-green-50 border-green-100 hover:border-green-300">
+            <div className="p-3 rounded-full bg-green-200 text-green-700 mb-3">
+                <SproutIcon className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-800">Daily Tip</h3>
+            <p className="mt-2 text-sm text-gray-700 font-medium italic">"{dailyTip}"</p>
         </Card>
       </div>
     </div>
