@@ -65,6 +65,7 @@ export interface PriceData {
 }
 
 export enum Crop {
+  // Crops
   Maize = 'Maize',
   Cassava = 'Cassava',
   Yam = 'Yam',
@@ -83,6 +84,18 @@ export enum Crop {
   Sorghum = 'Sorghum',
   Soyabean = 'Soyabean',
   Millet = 'Millet',
+  
+  // Livestock
+  Cow = 'Cow',
+  Goat = 'Goat',
+  Sheep = 'Sheep',
+  Chicken = 'Chicken',
+  GuineaFowl = 'Guinea Fowl',
+  Turkey = 'Turkey',
+  Pig = 'Pig',
+  Snail = 'Snail',
+  Rabbit = 'Rabbit',
+  Fish = 'Tilapia/Catfish'
 }
 
 export interface AdvisoryStage {
@@ -101,7 +114,7 @@ export interface PaymentExtractionResult {
 export interface MarketplaceItem {
   id: string;
   title: string;
-  category: 'Seeds' | 'Fertilizers' | 'Tools' | 'Produce' | 'All';
+  category: 'Seeds' | 'Fertilizers' | 'Tools' | 'Produce' | 'Livestock Feed' | 'Livestock' | 'All';
   seller_name: string;
   user_id: string; // Updated from owner_id to user_id
   seller_email?: string;

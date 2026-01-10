@@ -6,30 +6,41 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { getMarketPrices } from '../services/geminiService';
 import { Spinner, TagIcon, ArrowUpIcon, ArrowDownIcon, SearchIcon } from './common/icons';
 
-// Baseline reference for alerting logic only (approximate averages)
+// Baseline reference for alerting logic only (approximate averages in GHS)
 const priceBaselines: Record<Crop, number> = {
-    [Crop.Maize]: 240,
-    [Crop.Cassava]: 140,
-    [Crop.Yam]: 380,
-    [Crop.Cocoa]: 820,
-    [Crop.Rice]: 330,
-    [Crop.Tomato]: 100,
+    [Crop.Maize]: 240, // per bag
+    [Crop.Cassava]: 140, // per bag
+    [Crop.Yam]: 380, // per 100 tubers (small)
+    [Crop.Cocoa]: 820, // per bag
+    [Crop.Rice]: 330, // per 50kg
+    [Crop.Tomato]: 100, // per crate (fluctuates heavily)
     [Crop.Pepper]: 120,
     [Crop.Okro]: 180,
     [Crop.Eggplant]: 130,
-    [Crop.Plantain]: 60,
+    [Crop.Plantain]: 60, // per bunch
     [Crop.Banana]: 90,
     [Crop.KpakpoShito]: 220,
-    [Crop.Onion]: 500,
+    [Crop.Onion]: 500, // per sack
     [Crop.Orange]: 150,
     [Crop.Ginger]: 350,
     [Crop.Sorghum]: 280,
     [Crop.Soyabean]: 300,
     [Crop.Millet]: 290,
+    // Livestock Baselines (Average Unit Price)
+    [Crop.Cow]: 3500,
+    [Crop.Goat]: 450,
+    [Crop.Sheep]: 600,
+    [Crop.Chicken]: 70,
+    [Crop.GuineaFowl]: 90,
+    [Crop.Turkey]: 300,
+    [Crop.Pig]: 800,
+    [Crop.Snail]: 20, // per pack or jumbo size
+    [Crop.Rabbit]: 120,
+    [Crop.Fish]: 45, // per kg
 }
 
 const PriceAlerts: React.FC = () => {
-  const [selectedCrop, setSelectedCrop] = useState<Crop>(Crop.Maize);
+  const [selectedCommodity, setSelectedCommodity] = useState<Crop>(Crop.Maize);
   const [priceData, setPriceData] = useState<PriceData[]>([]);
   const [sources, setSources] = useState<GroundingSource[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,14 +53,14 @@ const PriceAlerts: React.FC = () => {
       setPriceData([]);
       setSources([]);
       try {
-        const response = await getMarketPrices(selectedCrop);
+        const response = await getMarketPrices(selectedCommodity);
         const data = response.data;
         setPriceData(data);
         setSources(response.sources);
         setLastUpdated(new Date().toLocaleString());
         
         // Analyze for Alerts
-        const basePrice = priceBaselines[selectedCrop];
+        const basePrice = priceBaselines[selectedCommodity];
         let hasAlert = false;
 
         data.forEach(p => {
@@ -58,7 +69,7 @@ const PriceAlerts: React.FC = () => {
                 if (!hasAlert) { // Avoid spamming multiple alerts at once
                     addNotification({
                         type: 'price',
-                        title: `Price Surge: ${selectedCrop}`,
+                        title: `Price Surge: ${selectedCommodity}`,
                         message: `High prices detected at ${p.market} (GHS ${p.price}). Market trend is Up.`,
                         view: 'PRICES'
                     });
@@ -75,7 +86,7 @@ const PriceAlerts: React.FC = () => {
 
     fetchPrices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCrop]);
+  }, [selectedCommodity]);
 
   return (
     <Card>
@@ -91,12 +102,12 @@ const PriceAlerts: React.FC = () => {
       
       <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
         <label htmlFor="crop-select" className="block text-sm font-medium text-gray-700 mb-1">
-          Select a Crop to Scan:
+          Select Commodity to Scan:
         </label>
         <select
           id="crop-select"
-          value={selectedCrop}
-          onChange={(e) => setSelectedCrop(e.target.value as Crop)}
+          value={selectedCommodity}
+          onChange={(e) => setSelectedCommodity(e.target.value as Crop)}
           className="mt-1 block w-full pl-3 pr-10 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
         >
           {Object.values(Crop).map((crop) => (
@@ -110,7 +121,7 @@ const PriceAlerts: React.FC = () => {
       <div>
         <div className="flex justify-between items-center mb-3">
             <h3 className="text-lg font-bold text-gray-800">
-            Latest Prices for {selectedCrop}
+            Latest Prices for {selectedCommodity}
             </h3>
             {lastUpdated && <span className="text-xs text-gray-400">Updated: {lastUpdated}</span>}
         </div>
@@ -122,7 +133,7 @@ const PriceAlerts: React.FC = () => {
             </div>
         ) : priceData.length === 0 ? (
             <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                <p className="text-gray-500">No recent data found for this crop. Please try again later.</p>
+                <p className="text-gray-500">No recent data found for this commodity. Please try again later.</p>
             </div>
         ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">

@@ -68,7 +68,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const { addNotification } = useNotifications();
   const { location, error: geoError } = useGeolocation();
 
-  const categories = ['All', 'Seeds', 'Fertilizers', 'Tools', 'Produce'];
+  const categories = ['All', 'Seeds', 'Fertilizers', 'Livestock Feed', 'Livestock', 'Tools', 'Produce'];
 
   useEffect(() => {
     fetchItems();
