@@ -312,12 +312,12 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
           </Button>
         </div>
       ) : (
-        <div className="flex gap-2 sm:gap-3 items-center">
-          <Button onClick={() => { resetForms(); setModalState('LOGIN'); }} className="bg-transparent hover:bg-green-700 border border-green-300 text-green-50 hover:text-white text-xs sm:text-sm py-1.5 px-2.5 sm:py-2 sm:px-4 transition-all shadow-sm">
-            Login
-          </Button>
-          <Button onClick={() => { resetForms(); setModalState('REGISTER'); }} className="bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm py-1.5 px-3 sm:py-2 sm:px-5 font-bold shadow-md border border-orange-700 transform hover:scale-105 transition-all shadow-orange-900/50">
+        <div className="flex flex-col gap-2 items-stretch min-w-[110px]">
+          <Button onClick={() => { resetForms(); setModalState('REGISTER'); }} className="bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm py-1.5 px-3 sm:py-2 sm:px-5 font-bold shadow-md border border-orange-700 transform hover:scale-105 transition-all shadow-orange-900/50 w-full justify-center">
             Register
+          </Button>
+          <Button onClick={() => { resetForms(); setModalState('LOGIN'); }} className="bg-transparent hover:bg-green-700 border border-green-300 text-green-50 hover:text-white text-xs sm:text-sm py-1.5 px-2.5 sm:py-2 sm:px-4 transition-all shadow-sm w-full justify-center">
+            Login
           </Button>
         </div>
       )}

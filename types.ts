@@ -241,3 +241,13 @@ export interface UserFile {
   notes?: string | null;
   created_at: string; // Standardized to snake_case
 }
+
+export interface AdBanner {
+  id: string | number;
+  title: string;
+  text: string;
+  color: string; // e.g. "bg-green-50 border-green-100"
+  imageUrl?: string;
+  link?: string;
+  isActive?: boolean;
+}

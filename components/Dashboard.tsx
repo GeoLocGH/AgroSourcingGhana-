@@ -6,7 +6,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { checkWeatherAlerts, getFarmingTip } from '../services/geminiService';
 import { getWalletBalance } from '../services/paymentService';
-import type { View, User } from '../types';
+import type { View, User, AdBanner } from '../types';
 import { uploadUserFile } from '../services/storageService';
 import { supabase } from '../services/supabase';
 import Button from './common/Button';
@@ -15,6 +15,31 @@ interface DashboardProps {
   setActiveView: (view: View) => void;
   user: User | null;
 }
+
+// Simulated Ghanaian Agricultural Companies Fallback
+const DEFAULT_ADS: AdBanner[] = [
+    {
+        id: 'sim-1',
+        title: "Farmerline",
+        text: "Mergdata: Digitize your farm & access finance.",
+        color: "bg-blue-50 border-blue-100",
+        imageUrl: "https://placehold.co/600x200/2563eb/ffffff?text=Farmerline+Solutions"
+    },
+    {
+        id: 'sim-2',
+        title: "AgroCenta",
+        text: "Sell directly to off-takers at fair prices.",
+        color: "bg-green-50 border-green-100",
+        imageUrl: "https://placehold.co/600x200/16a34a/ffffff?text=AgroCenta+Market+Access"
+    },
+    {
+        id: 'sim-3',
+        title: "TroTro Tractor",
+        text: "Reliable mechanization services on demand.",
+        color: "bg-orange-50 border-orange-100",
+        imageUrl: "https://placehold.co/600x200/ea580c/ffffff?text=TroTro+Tractor+Rentals"
+    }
+];
 
 const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
   const { addNotification } = useNotifications();
@@ -34,22 +59,47 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
 
   const [walletBalance, setWalletBalance] = useState<number>(0);
 
+  // Ad Banner State
+  const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [adBanners, setAdBanners] = useState<AdBanner[]>(DEFAULT_ADS);
+
+  // Fetch Ads and Settings
   useEffect(() => {
     const fetchSettings = async () => {
-        const { data } = await supabase.from('settings').select('value').eq('id', 'dashboard').single();
-        if (data?.value?.logoUrl) setLogoUrl(data.value.logoUrl);
+        // Fetch Logo
+        const { data: logoData } = await supabase.from('settings').select('value').eq('id', 'dashboard').single();
+        if (logoData?.value?.logoUrl) setLogoUrl(logoData.value.logoUrl);
+
+        // Fetch Ads
+        const { data: adsData } = await supabase.from('settings').select('value').eq('id', 'ad_banners').single();
+        if (adsData?.value?.banners && Array.isArray(adsData.value.banners) && adsData.value.banners.length > 0) {
+            setAdBanners(adsData.value.banners);
+        }
     };
     fetchSettings();
 
     const sub = supabase.channel('dashboard-settings')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.dashboard' }, (payload) => {
-             if (payload.new && (payload.new as any).value) {
-                setLogoUrl((payload.new as any).value.logoUrl);
-            }
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, (payload) => {
+             const newData = payload.new as any;
+             if (newData.id === 'dashboard' && newData.value?.logoUrl) {
+                setLogoUrl(newData.value.logoUrl);
+             }
+             if (newData.id === 'ad_banners' && newData.value?.banners) {
+                 setAdBanners(newData.value.banners);
+             }
         }).subscribe();
         
     return () => { sub.unsubscribe(); };
   }, []);
+
+  // Ad rotation effect
+  useEffect(() => {
+      if (adBanners.length <= 1) return;
+      const interval = setInterval(() => {
+          setCurrentAdIndex((prev) => (prev + 1) % adBanners.length);
+      }, 8000);
+      return () => clearInterval(interval);
+  }, [adBanners]);
 
   useEffect(() => {
     // Determine the effective location: GPS object or Manual String
@@ -215,6 +265,41 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
             </div>
         </div>
       </div>
+
+      {/* Ad Banner Card */}
+      {adBanners.length > 0 && (
+          <Card className="flex flex-col items-center justify-center text-center p-0 overflow-hidden relative min-h-[200px] border-2 border-dashed border-gray-300 hover:border-gray-400 mb-6 bg-gray-50">
+              <span className="absolute top-2 right-2 text-[10px] text-gray-500 border border-gray-300 bg-white/80 px-1.5 rounded z-20 shadow-sm backdrop-blur-sm">Sponsored</span>
+              {adBanners.map((ad, idx) => (
+                  <div 
+                      key={ad.id} 
+                      className={`absolute inset-0 flex flex-col items-center justify-center p-6 text-center transition-opacity duration-1000 ease-in-out ${idx === currentAdIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'} ${ad.imageUrl ? '' : ad.color}`}
+                  >
+                      {ad.imageUrl && (
+                          <div className="absolute inset-0 z-0">
+                              <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover opacity-30" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-white/70 to-white/40"></div>
+                          </div>
+                      )}
+                      
+                      <div className="relative z-10 flex flex-col items-center">
+                          {ad.imageUrl ? (
+                               <img src={ad.imageUrl} alt="Logo" className="h-16 w-auto object-contain mb-3 rounded-md shadow-sm bg-white p-1" />
+                          ) : (
+                               <div className="mb-4 p-3 bg-white rounded-full shadow-sm">
+                                   <SproutIcon className="w-8 h-8 text-green-600" />
+                               </div>
+                          )}
+                          <h3 className="text-2xl font-extrabold text-gray-900 mb-1 drop-shadow-sm">{ad.title}</h3>
+                          <p className="text-base text-gray-800 mb-4 font-medium max-w-lg leading-relaxed">{ad.text}</p>
+                          <Button className="py-2 px-6 text-xs shadow-md bg-green-700 hover:bg-green-800 text-white border-none transform hover:scale-105 transition-transform">
+                              Learn More
+                          </Button>
+                      </div>
+                  </div>
+              ))}
+          </Card>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {features.map((feature) => (
