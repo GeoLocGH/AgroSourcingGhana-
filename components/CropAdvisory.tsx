@@ -6,7 +6,11 @@ import type { AdvisoryStage, GroundingSource } from '../types';
 import { Crop } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { Spinner, TimelineIcon, SearchIcon, AlertTriangleIcon, SproutIcon, GridIcon } from './common/icons';
+import { Spinner, TimelineIcon, SearchIcon, AlertTriangleIcon, SproutIcon, GridIcon, TractorIcon } from './common/icons';
+
+const LIVESTOCK_GROUPS = [
+  'Cow', 'Goat', 'Sheep', 'Chicken', 'Guinea Fowl', 'Turkey', 'Pig', 'Snail', 'Rabbit', 'Tilapia/Catfish'
+];
 
 const CropAdvisory: React.FC = () => {
   const { location, loading: geoLoading, error: geoError } = useGeolocation();
@@ -18,6 +22,8 @@ const CropAdvisory: React.FC = () => {
   const [sources, setSources] = useState<GroundingSource[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const isLivestock = LIVESTOCK_GROUPS.includes(selectedCrop);
 
   const handleGenerate = async () => {
     // Effective location: GPS or Manual
@@ -34,7 +40,12 @@ const CropAdvisory: React.FC = () => {
     setSources([]);
 
     try {
-      const response = await getAdvisory(selectedCrop, plantingDate, loc);
+      const response = await getAdvisory(
+          selectedCrop, 
+          plantingDate, 
+          loc, 
+          isLivestock ? 'Livestock' : 'Crop'
+      );
       setAdvisory(response.data);
       setSources(response.sources);
     } catch (err) {
@@ -48,30 +59,41 @@ const CropAdvisory: React.FC = () => {
   return (
     <Card>
       <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 bg-green-100 rounded-full text-green-700">
-             <SproutIcon className="w-6 h-6" />
+          <div className={`p-2 rounded-full ${isLivestock ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+             {isLivestock ? <TractorIcon className="w-6 h-6" /> : <SproutIcon className="w-6 h-6" />}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-green-800">Smart Crop Advisory</h2>
+            <h2 className={`text-xl font-bold ${isLivestock ? 'text-orange-800' : 'text-green-800'}`}>
+                {isLivestock ? 'Smart Livestock Advisory' : 'Smart Crop Advisory'}
+            </h2>
             <p className="text-xs text-gray-500">Real-time farming guidance based on current conditions.</p>
           </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Select Crop</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Select {isLivestock ? 'Livestock' : 'Crop'}</label>
           <select
             value={selectedCrop}
             onChange={(e) => setSelectedCrop(e.target.value as Crop)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
           >
-            {Object.values(Crop).map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+            <optgroup label="Crops">
+                {Object.values(Crop).filter(c => !LIVESTOCK_GROUPS.includes(c)).map((c) => (
+                <option key={c} value={c}>{c}</option>
+                ))}
+            </optgroup>
+            <optgroup label="Livestock">
+                {Object.values(Crop).filter(c => LIVESTOCK_GROUPS.includes(c)).map((c) => (
+                <option key={c} value={c}>{c}</option>
+                ))}
+            </optgroup>
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Planting Date</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isLivestock ? 'Start / Birth Date' : 'Planting Date'}
+          </label>
           <input
             type="date"
             value={plantingDate}
@@ -106,7 +128,7 @@ const CropAdvisory: React.FC = () => {
             onClick={handleGenerate} 
             disabled={loading || (geoLoading && !manualLocation) || (!location && !manualLocation)} 
             isLoading={loading}
-            className="w-full md:w-auto"
+            className={`w-full md:w-auto ${isLivestock ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-700 hover:bg-green-800'}`}
         >
           {loading ? 'Analyzing Conditions...' : 'Generate Plan'}
         </Button>
@@ -121,26 +143,26 @@ const CropAdvisory: React.FC = () => {
 
       <div className="space-y-6 relative">
         {advisory.length > 0 && (
-            <div className="absolute left-3.5 top-2 bottom-2 w-0.5 bg-green-200"></div>
+            <div className={`absolute left-3.5 top-2 bottom-2 w-0.5 ${isLivestock ? 'bg-orange-200' : 'bg-green-200'}`}></div>
         )}
         
         {advisory.map((stage, index) => (
           <div key={index} className="relative pl-10 animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
-            <div className="absolute left-0 top-0 p-1.5 bg-green-500 rounded-full border-4 border-white shadow-sm z-10">
+            <div className={`absolute left-0 top-0 p-1.5 rounded-full border-4 border-white shadow-sm z-10 ${isLivestock ? 'bg-orange-500' : 'bg-green-500'}`}>
                <div className="w-2 h-2 bg-white rounded-full"></div>
             </div>
             
             <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-2">
                   <h3 className="font-bold text-lg text-gray-800">{stage.stage}</h3>
-                  <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wide">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wide ${isLivestock ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
                       {stage.timeline}
                   </span>
               </div>
               <ul className="space-y-2">
                 {stage.instructions.map((instruction, i) => (
                   <li key={i} className="flex items-start text-sm text-gray-600">
-                    <span className="mr-2 mt-1.5 w-1.5 h-1.5 bg-green-400 rounded-full flex-shrink-0"></span>
+                    <span className={`mr-2 mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${isLivestock ? 'bg-orange-400' : 'bg-green-400'}`}></span>
                     <span>{instruction}</span>
                   </li>
                 ))}

@@ -142,8 +142,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
       if (signUpError) {
           console.warn("Standard signup failed:", signUpError.message);
 
-          // Scenario A: "Database error saving new user" (Trigger failure)
-          // We try to login (in case user was created but trigger failed) or standard signup without metadata.
           if (signUpError.message && (signUpError.message.includes("Database error saving new user") || signUpError.message.includes("trigger"))) {
               
               // A1. Try fallback login first
@@ -154,10 +152,9 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
 
               if (!loginError && loginData.session) {
                   console.log("Fallback login successful. Proceeding to manual profile update.");
-                  authData = loginData; // Hijack the authData
-                  // Continue to manual profile sync below...
+                  authData = loginData;
               } else {
-                  // A2. If Login fails, user wasn't created. Try Minimal Signup (No Metadata to bypass trigger issues)
+                  // A2. If Login fails, user wasn't created. Try Minimal Signup
                   console.log("Fallback login failed. Attempting minimal signup...");
                   const { data: minimalData, error: minimalError } = await supabase.auth.signUp({
                       email: cleanEmail,
@@ -168,7 +165,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   authData = minimalData;
               }
           } else {
-              throw signUpError; // Throw other errors (e.g. email taken) normally
+              throw signUpError; 
           }
       }
 
@@ -178,7 +175,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
       const isSessionActive = !!authData.session;
 
       // 3. Post-Creation Logic (Profile Sync)
-      // If we have a session, we ensure the public.users profile exists/is updated
       if (isSessionActive) {
           let profilePhotoUrl = '';
           if (regPhoto) {
@@ -201,12 +197,10 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               merchant_id: generatedMerchantId
           };
 
-          // Manual Upsert to ensure profile exists (Fixes the trigger failure result)
           const { error: dbError } = await supabase.from('users').upsert([newUserDB]);
           
           if (dbError) {
               console.error("DB Profile Sync Error:", JSON.stringify(dbError));
-              // We don't block login if DB sync fails, but we notify console
           }
           
           onLogin({ ...newUserDB, uid: userId, photo_url: profilePhotoUrl } as User);
@@ -272,7 +266,6 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
   const handleLogoutClick = async () => {
       const firstName = user?.name ? user.name.split(' ')[0] : 'User';
       
-      // Determine respectful title based on common names
       const lowerName = firstName.toLowerCase();
       const femaleNames = [
           'gifty', 'ama', 'akua', 'yaa', 'adwoa', 'abena', 'afia', 'esi', 'mary', 'sarah', 
@@ -392,7 +385,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
-                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
                 <Button type="submit" isLoading={isLoading} className="w-full bg-orange-600 hover:bg-orange-700">
@@ -411,7 +404,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
         </div>
       )}
 
-      {/* Update Password Modal (New) */}
+      {/* Update Password Modal */}
       {modalState === 'UPDATE_PASSWORD' && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 text-gray-800">
           <Card className="w-full max-w-md bg-white">
@@ -437,7 +430,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   placeholder="Enter new password"
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
               <Button type="submit" isLoading={isLoading} className="w-full bg-green-700 hover:bg-green-800 mb-4">Update Password</Button>
@@ -470,7 +463,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   required
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
               <div className="mb-2">
@@ -480,7 +473,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   value={loginPass}
                   onChange={(e) => setLoginPass(e.target.value)}
                   required
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
               
@@ -556,7 +549,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   onChange={(e) => setRegName(e.target.value)}
                   required
                   placeholder="Kwame Mensah"
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
               
@@ -568,7 +561,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   onChange={(e) => setRegPhone(e.target.value.replace(/\D/g,'').slice(0,10))}
                   placeholder="024XXXXXXX"
                   required
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
@@ -577,7 +570,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                 <select
                   value={regNetwork}
                   onChange={(e) => setRegNetwork(e.target.value)}
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   {networks.map(net => <option key={net} value={net}>{net}</option>)}
                 </select>
@@ -590,7 +583,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   required
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
@@ -602,7 +595,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                       value={regPass}
                       onChange={(e) => setRegPass(e.target.value)}
                       required
-                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
                   <div>
@@ -612,7 +605,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
                       value={regRepeatPass}
                       onChange={(e) => setRegRepeatPass(e.target.value)}
                       required
-                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
               </div>

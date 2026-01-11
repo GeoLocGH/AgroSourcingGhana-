@@ -560,13 +560,13 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                            <input 
                                 value={formData.name} 
                                 onChange={e => setFormData({...formData, name: e.target.value})}
-                                className="w-full p-2 border rounded text-sm text-gray-900 bg-white" 
+                                className="w-full p-2 border rounded text-sm text-gray-900 bg-gray-50" 
                                 placeholder="Full Name" 
                            />
                            <input 
                                 value={formData.phone} 
                                 onChange={e => setFormData({...formData, phone: e.target.value})}
-                                className="w-full p-2 border rounded text-sm text-gray-900 bg-white" 
+                                className="w-full p-2 border rounded text-sm text-gray-900 bg-gray-50" 
                                 placeholder="Phone Number" 
                            />
                            <div className="flex gap-2">
@@ -787,7 +787,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                         <input 
                             value={editFormData.title} 
                             onChange={e => setEditFormData({...editFormData, title: e.target.value})} 
-                            className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                            className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                             required
                         />
                     </div>
@@ -797,7 +797,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                             type="number"
                             value={editFormData.price} 
                             onChange={e => setEditFormData({...editFormData, price: parseFloat(e.target.value)})} 
-                            className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                            className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                             required
                         />
                     </div>
@@ -806,7 +806,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                         <textarea 
                             value={editFormData.description} 
                             onChange={e => setEditFormData({...editFormData, description: e.target.value})} 
-                            className="w-full p-2 border border-gray-300 rounded text-gray-900 h-24 bg-white"
+                            className="w-full p-2 border border-gray-300 rounded text-gray-900 h-24 bg-gray-50"
                         />
                     </div>
                     <div className="flex gap-2 pt-2">
@@ -844,7 +844,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                         <div ref={chatEndRef} />
                     </div>
                     <form onSubmit={handleSendReply} className="p-4 border-t flex gap-2">
-                        <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type message..." className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-white !text-gray-900" />
+                        <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type message..." className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-gray-50 !text-gray-900" />
                         <Button type="submit" isLoading={sendingChat}>Send</Button>
                     </form>
                 </div>

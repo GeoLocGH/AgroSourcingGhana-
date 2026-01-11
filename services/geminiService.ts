@@ -157,12 +157,22 @@ export const diagnosePlant = async (base64Image: string, mimeType: string): Prom
     });
 };
 
-export const getAdvisory = async (crop: string, plantingDate: string, location: GeoLocation | string): Promise<ServiceResponse<AdvisoryStage[]>> => {
+export const getAdvisory = async (subject: string, date: string, location: GeoLocation | string, category: 'Crop' | 'Livestock'): Promise<ServiceResponse<AdvisoryStage[]>> => {
     const locString = typeof location === 'string' 
         ? location 
         : `${location.latitude}, ${location.longitude}`;
         
-    const prompt = `Create a crop advisory for ${crop} planted on ${plantingDate} at location ${locString}. Return JSON.`;
+    let prompt;
+    if (category === 'Livestock') {
+        prompt = `Create a livestock rearing advisory for ${subject} in Ghana, starting from ${date} at location ${locString}. 
+        Return JSON. The advisory must be specific to raising animals.
+        Do NOT use terms like 'seed', 'germination', or 'planting'. 
+        Use terms like 'housing', 'brooding', 'feeding', 'vaccination', 'weaning'.
+        Stages should be sequential (e.g., Housing Prep, Arrival/Birth, Growing, Maturity).`;
+    } else {
+        prompt = `Create a crop farming advisory for ${subject} in Ghana, planted on ${date} at location ${locString}. 
+        Return JSON. Focus on stages like Land Prep, Planting, Vegetative, Flowering, Harvest.`;
+    }
 
     return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({

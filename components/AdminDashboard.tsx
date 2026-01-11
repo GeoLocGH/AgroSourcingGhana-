@@ -250,7 +250,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogin }) => {
                                   <select 
                                       value={regRole} 
                                       onChange={e => setRegRole(e.target.value as 'admin' | 'agent')} 
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-white"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-gray-50"
                                   >
                                       <option value="agent">Executive Reporting Agent</option>
                                       <option value="admin">System Administrator</option>
@@ -262,7 +262,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogin }) => {
                                       required 
                                       value={name} 
                                       onChange={e => setName(e.target.value)} 
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-gray-50" 
                                       placeholder="Agent Name"
                                   />
                               </div>
@@ -273,7 +273,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogin }) => {
                                       type="tel"
                                       value={phone} 
                                       onChange={e => setPhone(e.target.value)} 
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-gray-50" 
                                       placeholder="Official Phone Number"
                                   />
                               </div>
@@ -287,7 +287,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogin }) => {
                               type="email"
                               value={email} 
                               onChange={e => setEmail(e.target.value)} 
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-gray-50" 
                               placeholder="agent@agrosourcing.com"
                           />
                       </div>
@@ -299,7 +299,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogin }) => {
                               type="password"
                               value={password} 
                               onChange={e => setPassword(e.target.value)} 
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" 
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-gray-50" 
                               placeholder="••••••••"
                           />
                       </div>

@@ -591,14 +591,14 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                     placeholder="Search by name or location..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-gray-900"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50 text-gray-900"
                 />
                 <SearchIcon className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
             </div>
             <select 
                 value={selectedType} 
                 onChange={(e) => setSelectedType(e.target.value as EquipmentType | 'All')}
-                className="p-2 border border-gray-300 rounded-lg bg-white text-gray-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="p-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 outline-none focus:ring-2 focus:ring-indigo-500"
             >
                 <option value="All">All Types</option>
                 {Object.values(EquipmentType).map(type => (
@@ -665,7 +665,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                                 required
                                 value={currentItem.name} 
                                 onChange={e => setCurrentItem({...currentItem, name: e.target.value})} 
-                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                 placeholder="e.g. John Deere 5050D"
                             />
                         </div>
@@ -676,7 +676,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                                 <select 
                                     value={currentItem.type} 
                                     onChange={e => setCurrentItem({...currentItem, type: e.target.value as EquipmentType})} 
-                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                 >
                                     {Object.values(EquipmentType).map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
@@ -688,7 +688,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                                     required
                                     value={currentItem.price_per_day} 
                                     onChange={e => setCurrentItem({...currentItem, price_per_day: parseFloat(e.target.value)})} 
-                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -700,7 +700,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                                 <input 
                                     value={currentItem.location} 
                                     onChange={e => setCurrentItem({...currentItem, location: e.target.value})} 
-                                    className="flex-grow p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    className="flex-grow p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                     placeholder="Town or Region"
                                 />
                                 <button type="button" onClick={handleUseMyLocation} className="px-3 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-gray-600" title="Use GPS">
@@ -714,7 +714,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                             <textarea 
                                 value={currentItem.description} 
                                 onChange={e => setCurrentItem({...currentItem, description: e.target.value})} 
-                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                 rows={3}
                                 placeholder="Condition, included attachments, operator details..."
                             />
@@ -876,7 +876,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                        <textarea 
                            value={ratingComment}
                            onChange={(e) => setRatingComment(e.target.value)}
-                           className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-yellow-500 outline-none"
+                           className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-gray-50 focus:ring-2 focus:ring-yellow-500 outline-none"
                            placeholder="Describe your experience (optional)..."
                            rows={3}
                        />
@@ -897,9 +897,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                         <button onClick={() => setIsInquiryVisible(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
                     </div>
                     <form onSubmit={submitInquiry} className="space-y-4">
-                        <input value={inquiryForm.name} onChange={e => setInquiryForm({...inquiryForm, name: e.target.value})} placeholder="Your Name" className="w-full p-2 border rounded bg-white text-gray-900" required />
-                        <input value={inquiryForm.phone} onChange={e => setInquiryForm({...inquiryForm, phone: e.target.value})} placeholder="Your Phone" className="w-full p-2 border rounded bg-white text-gray-900" required />
-                        <textarea value={inquiryForm.message} onChange={e => setInquiryForm({...inquiryForm, message: e.target.value})} placeholder="Message..." className="w-full p-2 border rounded bg-white text-gray-900" rows={4} required />
+                        <input value={inquiryForm.name} onChange={e => setInquiryForm({...inquiryForm, name: e.target.value})} placeholder="Your Name" className="w-full p-2 border rounded bg-gray-50 text-gray-900" required />
+                        <input value={inquiryForm.phone} onChange={e => setInquiryForm({...inquiryForm, phone: e.target.value})} placeholder="Your Phone" className="w-full p-2 border rounded bg-gray-50 text-gray-900" required />
+                        <textarea value={inquiryForm.message} onChange={e => setInquiryForm({...inquiryForm, message: e.target.value})} placeholder="Message..." className="w-full p-2 border rounded bg-gray-50 text-gray-900" rows={4} required />
                         <Button type="submit" isLoading={isSubmittingInquiry} className="w-full">Send Inquiry</Button>
                     </form>
                 </Card>
@@ -938,7 +938,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                         <div ref={chatEndRef} />
                     </div>
                     <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
-                        <input type="text" value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)} placeholder="Type your message..." className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-white !text-gray-900" />
+                        <input type="text" value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)} placeholder="Type your message..." className="flex-grow border border-gray-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 !bg-gray-50 !text-gray-900" />
                         <Button type="submit" isLoading={isSending}>Send</Button>
                     </form>
                 </div>

@@ -657,11 +657,11 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
                <div className="max-w-md mx-auto animate-fade-in">
                    <h3 className="text-lg font-bold mb-4">Link New Account</h3>
                    <div className="bg-white p-5 rounded-xl border space-y-4">
-                       <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)} className="w-full p-3 border rounded-lg bg-white text-gray-900">
+                       <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)} className="w-full p-3 border rounded-lg bg-gray-50 text-gray-900">
                            <option value="">Select Provider</option>
                            {[...NETWORKS, ...BANKS].map(p => <option key={p} value={p}>{p}</option>)}
                        </select>
-                       <input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Account/Phone Number" className="w-full p-3 border rounded-lg text-gray-900" />
+                       <input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Account/Phone Number" className="w-full p-3 border rounded-lg bg-gray-50 text-gray-900" />
                        <Button onClick={handleLinkAccount} className="w-full">Link Account</Button>
                    </div>
                </div>
@@ -671,8 +671,8 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
               <div className="max-w-md mx-auto animate-fade-in">
                   <h3 className="text-lg font-bold mb-4">Send Money</h3>
                   <div className="bg-white p-5 rounded-xl border space-y-4">
-                       <input type="tel" value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Recipient Phone (024...)" className="w-full p-3 border rounded-lg text-gray-900" />
-                       <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (GHS)" className="w-full p-3 border rounded-lg text-gray-900" />
+                       <input type="tel" value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Recipient Phone (024...)" className="w-full p-3 border rounded-lg bg-gray-50 text-gray-900" />
+                       <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount (GHS)" className="w-full p-3 border rounded-lg bg-gray-50 text-gray-900" />
                        <Button onClick={() => handleTransactionStart('TRANSFER', parseFloat(amount), `Transfer to ${recipient}`)} className="w-full bg-blue-600 hover:bg-blue-700">Next</Button>
                   </div>
               </div>
@@ -700,7 +700,7 @@ const DigitalWallet: React.FC<DigitalWalletProps> = ({ user }) => {
           {activeView === 'VERIFY_SMS' && (
             <div className="max-w-md mx-auto animate-fade-in">
                 <h3 className="text-lg font-bold mb-4">Verify Payment SMS</h3>
-                <textarea value={smsText} onChange={e => setSmsText(e.target.value)} rows={4} className="w-full p-3 border rounded-lg mb-4 text-gray-900" placeholder="Paste SMS..." />
+                <textarea value={smsText} onChange={e => setSmsText(e.target.value)} rows={4} className="w-full p-3 border rounded-lg mb-4 bg-gray-50 text-gray-900" placeholder="Paste SMS..." />
                 <Button onClick={async () => {
                     const res = await parsePaymentSMS(smsText);
                     setVerificationResult(res);

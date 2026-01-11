@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { ForumPost, ForumReply, User } from '../types';
 import Card from './common/Card';
 import Button from './common/Button';
-import { ArrowLeftIcon, PlusIcon, PaperClipIcon, TrashIcon, XIcon, UploadIcon, MessageSquareIcon } from './common/icons';
+import { ArrowLeftIcon, PlusIcon, PaperClipIcon, TrashIcon, XIcon, UploadIcon, MessageSquareIcon, UserCircleIcon } from './common/icons';
 import { fileToDataUri } from '../utils';
 import { uploadUserFile } from '../services/storageService';
 import { supabase } from '../services/supabase';
@@ -32,7 +32,6 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
   const [newReplyFiles, setNewReplyFiles] = useState<File[]>([]);
   const [newReplyPreviews, setNewReplyPreviews] = useState<string[]>([]);
   
-  const [isDragging, setIsDragging] = useState(false);
   const postFileInputRef = useRef<HTMLInputElement>(null);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -215,15 +214,6 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                                             </div>
                                         </div>
                                     </div>
-                                    {(post.images?.[0] || post.image_url) && (
-                                        <div className="mt-3 h-32 w-full bg-gray-100 rounded-md overflow-hidden relative">
-                                            <img 
-                                                src={post.images?.[0] || post.image_url || ''} 
-                                                alt="Post Attachment" 
-                                                className="w-full h-full object-cover transition-transform hover:scale-105" 
-                                            />
-                                        </div>
-                                    )}
                                 </Card>
                             </div>
                         ))
@@ -231,208 +221,165 @@ const CommunityForum: React.FC<CommunityForumProps> = ({ user }) => {
                 </div>
             </div>
         )}
-        
+
+        {/* VIEW POST / REPLIES */}
         {view === 'POST' && selectedPost && (
             <div>
-                 <div className="flex justify-between items-center mb-4">
-                     <Button onClick={() => setView('LIST')} className="bg-gray-200 !text-gray-900 hover:bg-gray-300">
-                        <ArrowLeftIcon className="w-4 h-4 mr-2 inline" /> Back
-                     </Button>
-                     {isOwner(selectedPost) && (
-                        <button 
-                            onClick={() => handleDeletePost(selectedPost.id)}
-                            className="text-red-500 hover:text-red-700 flex items-center gap-1 text-sm font-medium"
-                        >
-                            <TrashIcon className="w-4 h-4" /> Delete Thread
-                        </button>
-                     )}
-                 </div>
-                 
-                 <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedPost.title}</h2>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-4 border-b pb-4">
-                        <span className="font-medium text-green-700">{selectedPost.author}</span>
-                        <span>•</span>
-                        <span>{new Date(selectedPost.created_at).toLocaleString()}</span>
-                    </div>
-                    
-                    <p className="text-gray-800 whitespace-pre-wrap leading-relaxed mb-4">{selectedPost.content}</p>
-                    
-                    {selectedPost.images && selectedPost.images.length > 0 && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-4">
-                            {selectedPost.images.map((img, idx) => (
-                                <img 
-                                    key={idx} 
-                                    src={img} 
-                                    alt={`Attachment ${idx}`} 
-                                    className="rounded-lg border border-gray-200 w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                    onClick={() => setMagnifiedImage(img)}
-                                    title="Click to zoom"
-                                />
-                            ))}
-                        </div>
-                    )}
-                 </div>
-                 
-                 {/* Replies */}
-                 <div className="mt-8 bg-gray-50 p-4 rounded-xl">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <MessageSquareIcon className="w-5 h-5" />
-                        Replies ({selectedPost.replies.length})
-                    </h3>
-                    
-                    <div className="space-y-4 mb-6">
-                        {selectedPost.replies.length === 0 ? (
-                            <p className="text-gray-500 italic">No replies yet.</p>
-                        ) : (
-                            selectedPost.replies.map((r, idx) => (
-                                <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                                    <div className="flex justify-between mb-2">
-                                        <span className="font-bold text-sm text-gray-900">{r.author}</span>
-                                        <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
-                                    </div>
-                                    <p className="text-gray-700 text-sm">{r.content}</p>
-                                    {r.images && r.images.length > 0 && (
-                                        <div className="flex gap-2 mt-2 flex-wrap">
-                                            {r.images.map((img, i) => (
-                                                <img 
-                                                    key={i} 
-                                                    src={img} 
-                                                    className="w-20 h-20 rounded object-cover border border-gray-300 cursor-pointer hover:scale-105 transition-transform" 
-                                                    alt="Reply attachment" 
-                                                    onClick={() => setMagnifiedImage(img)}
-                                                    title="Click to zoom"
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                 
-                    {/* Add Reply Form */}
-                    <form onSubmit={handleAddReply} className="border-t pt-4">
-                        {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-                        <textarea 
-                            value={newReplyContent} 
-                            onChange={e => setNewReplyContent(e.target.value)} 
-                            className="w-full border p-3 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-green-500 outline-none mb-2" 
-                            placeholder="Write a helpful reply..." 
-                            rows={3}
-                        />
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <button type="button" onClick={() => replyFileInputRef.current?.click()} className="text-gray-500 hover:text-green-600 p-2 rounded-full hover:bg-gray-100">
-                                    <PaperClipIcon className="w-5 h-5" />
-                                </button>
-                                <input type="file" multiple ref={replyFileInputRef} onChange={e => handleImageChange(e, 'reply')} className="hidden" />
-                                {newReplyPreviews.length > 0 && <span className="text-xs text-green-600">{newReplyPreviews.length} image(s) attached</span>}
-                            </div>
-                            <Button type="submit" isLoading={isSubmitting} disabled={!newReplyContent.trim()}>Post Reply</Button>
-                        </div>
-                    </form>
-                 </div>
+               <Button onClick={() => setView('LIST')} className="mb-4 bg-gray-100 !text-gray-800 hover:bg-gray-200 border-none flex items-center gap-2">
+                   <ArrowLeftIcon className="w-4 h-4" /> Back to Forum
+               </Button>
+               
+               <div className="space-y-6">
+                   <Card className="bg-white border-l-4 border-green-600">
+                       <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedPost.title}</h2>
+                       <div className="flex items-center gap-2 mb-4 text-sm text-gray-500">
+                           <UserCircleIcon className="w-5 h-5" />
+                           <span>{selectedPost.author}</span>
+                           <span>•</span>
+                           <span>{new Date(selectedPost.created_at).toLocaleString()}</span>
+                       </div>
+                       
+                       <p className="text-gray-800 whitespace-pre-wrap leading-relaxed mb-4">{selectedPost.content}</p>
+                       
+                       {/* Post Images */}
+                       {selectedPost.images && selectedPost.images.length > 0 && (
+                           <div className="flex gap-2 overflow-x-auto pb-2">
+                               {selectedPost.images.map((img, idx) => (
+                                   <img 
+                                      key={idx} 
+                                      src={img} 
+                                      alt="Post attachment" 
+                                      className="h-40 w-auto rounded-lg border border-gray-200 cursor-pointer" 
+                                      onClick={() => setMagnifiedImage(img)}
+                                   />
+                               ))}
+                           </div>
+                       )}
+                       {/* Legacy single image support */}
+                       {!selectedPost.images && selectedPost.image_url && (
+                           <img 
+                              src={selectedPost.image_url} 
+                              alt="Post attachment" 
+                              className="h-40 w-auto rounded-lg border border-gray-200 cursor-pointer" 
+                              onClick={() => setMagnifiedImage(selectedPost.image_url!)}
+                           />
+                       )}
+                   </Card>
+
+                   <div className="pl-4 border-l-2 border-gray-200 space-y-4">
+                       <h3 className="font-bold text-gray-700">Replies</h3>
+                       {selectedPost.replies.length === 0 ? <p className="text-gray-400 italic">No replies yet.</p> : selectedPost.replies.map((reply, idx) => (
+                           <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                               <div className="flex justify-between items-start mb-2">
+                                   <span className="font-bold text-sm text-gray-800">{reply.author}</span>
+                                   <span className="text-xs text-gray-400">{new Date(reply.created_at).toLocaleString()}</span>
+                               </div>
+                               <p className="text-gray-700 text-sm whitespace-pre-wrap">{reply.content}</p>
+                               {reply.images && reply.images.length > 0 && (
+                                   <div className="flex gap-2 mt-2">
+                                       {reply.images.map((img, i) => (
+                                           <img key={i} src={img} className="h-20 w-auto rounded cursor-pointer" onClick={() => setMagnifiedImage(img)} />
+                                       ))}
+                                   </div>
+                               )}
+                           </div>
+                       ))}
+                   </div>
+
+                   {/* Add Reply Form */}
+                   <form onSubmit={handleAddReply} className="mt-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                       <label className="block text-sm font-bold text-gray-700 mb-2">Add a Reply</label>
+                       <textarea
+                           value={newReplyContent}
+                           onChange={e => setNewReplyContent(e.target.value)}
+                           className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 bg-gray-50 mb-3"
+                           rows={3}
+                           placeholder="Type your reply here..."
+                           required
+                       />
+                       <div className="flex justify-between items-center">
+                           <div className="flex items-center gap-2">
+                               <button type="button" onClick={() => replyFileInputRef.current?.click()} className="text-gray-500 hover:text-green-600 p-2 rounded-full hover:bg-gray-100">
+                                   <PaperClipIcon className="w-5 h-5" />
+                               </button>
+                               <input type="file" ref={replyFileInputRef} className="hidden" multiple onChange={(e) => handleImageChange(e, 'reply')} accept="image/*" />
+                               <span className="text-xs text-gray-400">{newReplyFiles.length} file(s) attached</span>
+                           </div>
+                           <Button type="submit" isLoading={isSubmitting} disabled={!user}>
+                               {user ? 'Post Reply' : 'Login to Reply'}
+                           </Button>
+                       </div>
+                   </form>
+               </div>
             </div>
         )}
 
+        {/* CREATE POST FORM */}
         {view === 'CREATE' && (
-            <form onSubmit={handleCreatePost}>
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-gray-800">Start a Discussion</h2>
-                    <button type="button" onClick={() => setView('LIST')} className="text-gray-400 hover:text-gray-600">
-                        <XIcon className="w-6 h-6" />
-                    </button>
+            <div>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-gray-800">Create Discussion</h2>
+                    <Button onClick={() => setView('LIST')} className="bg-gray-100 !text-gray-800 hover:bg-gray-200 border-none"><XIcon className="w-5 h-5"/></Button>
                 </div>
                 
-                {error && (
-                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                        {error}
-                    </div>
-                )}
+                {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg mb-4">{error}</div>}
 
-                <div className="space-y-4">
+                <form onSubmit={handleCreatePost} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                        <input 
-                            value={newPostTitle} 
-                            onChange={e => setNewPostTitle(e.target.value)} 
-                            className="w-full border p-3 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-green-500 outline-none" 
-                            placeholder="What's your question or topic?" 
+                        <input
+                            value={newPostTitle}
+                            onChange={e => setNewPostTitle(e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 bg-gray-50"
+                            placeholder="What's on your mind?"
+                            required
                         />
                     </div>
-                    
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-                        <textarea 
-                            value={newPostContent} 
-                            onChange={e => setNewPostContent(e.target.value)} 
-                            className="w-full border p-3 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-green-500 outline-none min-h-[150px]" 
-                            placeholder="Describe your issue, share knowledge, or ask the community..." 
+                        <textarea
+                            value={newPostContent}
+                            onChange={e => setNewPostContent(e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 bg-gray-50 h-40"
+                            placeholder="Describe your question or topic..."
+                            required
                         />
                     </div>
-
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Attachments</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Attachments (Images)</label>
                         <div className="flex items-center gap-4">
-                            <button 
-                                type="button" 
-                                onClick={() => postFileInputRef.current?.click()} 
-                                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 text-gray-700 font-medium"
-                            >
-                                <UploadIcon className="w-5 h-5" />
-                                Add Photos
-                            </button>
-                            <input type="file" multiple ref={postFileInputRef} onChange={e => handleImageChange(e, 'post')} className="hidden" accept="image/*" />
+                             <button type="button" onClick={() => postFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-700 text-sm">
+                                 <UploadIcon className="w-4 h-4" /> Select Images
+                             </button>
+                             <input type="file" ref={postFileInputRef} className="hidden" multiple onChange={(e) => handleImageChange(e, 'post')} accept="image/*" />
                         </div>
-                        
                         {newPostPreviews.length > 0 && (
-                            <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-                                {newPostPreviews.map((preview, idx) => (
-                                    <div key={idx} className="relative flex-shrink-0 w-20 h-20">
-                                        <img src={preview} alt="Preview" className="w-full h-full object-cover rounded-md border" />
-                                        <button 
-                                            type="button" 
-                                            onClick={() => {
-                                                setNewPostPreviews(prev => prev.filter((_, i) => i !== idx));
-                                                setNewPostFiles(prev => prev.filter((_, i) => i !== idx));
-                                            }}
-                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-sm"
-                                        >
-                                            <XIcon className="w-3 h-3" />
-                                        </button>
+                            <div className="flex gap-2 mt-3 overflow-x-auto">
+                                {newPostPreviews.map((src, i) => (
+                                    <div key={i} className="relative">
+                                        <img src={src} className="h-16 w-16 object-cover rounded border" />
+                                        <button type="button" className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5" onClick={() => {
+                                            setNewPostFiles(files => files.filter((_, idx) => idx !== i));
+                                            setNewPostPreviews(urls => urls.filter((_, idx) => idx !== i));
+                                        }}><XIcon className="w-3 h-3"/></button>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </div>
-
-                    <div className="flex gap-3 pt-4">
-                        <Button type="submit" isLoading={isSubmitting} className="flex-1">Post to Forum</Button>
-                        <Button onClick={() => setView('LIST')} className="flex-1 bg-gray-200 !text-gray-900 hover:bg-gray-300">Cancel</Button>
-                    </div>
-                </div>
-            </form>
+                    
+                    <Button type="submit" isLoading={isSubmitting} disabled={!user} className="w-full">
+                        {user ? 'Publish Post' : 'Login to Post'}
+                    </Button>
+                </form>
+            </div>
         )}
 
-        {/* Image Lightbox Modal */}
+        {/* Image Magnifier Modal */}
         {magnifiedImage && (
-            <div 
-                className="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 animate-fade-in" 
-                onClick={() => setMagnifiedImage(null)}
-            >
-                <button 
-                    className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-[80]"
-                    onClick={() => setMagnifiedImage(null)}
-                >
-                    <XIcon className="w-10 h-10" />
-                </button>
-                <img 
-                    src={magnifiedImage} 
-                    alt="Full View" 
-                    className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" 
-                    onClick={(e) => e.stopPropagation()} // Prevent close on image click
-                />
+            <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 cursor-pointer" onClick={() => setMagnifiedImage(null)}>
+                <img src={magnifiedImage} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+                <button className="absolute top-4 right-4 text-white hover:text-gray-300"><XIcon className="w-8 h-8" /></button>
             </div>
         )}
     </Card>

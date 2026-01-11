@@ -482,7 +482,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                    value={searchTerm}
                    onChange={e => setSearchTerm(e.target.value)}
                    placeholder="Search items..."
-                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-white text-gray-900"
+                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 bg-gray-50 text-gray-900"
                />
                <SearchIcon className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
            </div>
@@ -563,7 +563,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                 required
                                 value={newItem.title} 
                                 onChange={e => setNewItem({...newItem, title: e.target.value})} 
-                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                 placeholder="e.g. Fresh Tomatoes"
                             />
                         </div>
@@ -574,7 +574,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                 <select 
                                     value={newItem.category} 
                                     onChange={e => setNewItem({...newItem, category: e.target.value as any})} 
-                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                 >
                                     {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
@@ -586,7 +586,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                     required
                                     value={newItem.price} 
                                     onChange={e => setNewItem({...newItem, price: parseFloat(e.target.value)})} 
-                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -598,7 +598,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                                 <input 
                                     value={newItem.location_name} 
                                     onChange={e => setNewItem({...newItem, location_name: e.target.value})} 
-                                    className="flex-grow p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    className="flex-grow p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                     placeholder="Town or Region"
                                 />
                                 <button type="button" onClick={handleUseMyLocation} className="px-3 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-gray-600" title="Use GPS">
@@ -612,7 +612,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                             <textarea 
                                 value={newItem.usage_instructions} 
                                 onChange={e => setNewItem({...newItem, usage_instructions: e.target.value})} 
-                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-gray-50"
                                 rows={3}
                                 placeholder="Quantity, quality, delivery options..."
                             />
@@ -776,7 +776,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                        <textarea 
                            value={ratingComment}
                            onChange={(e) => setRatingComment(e.target.value)}
-                           className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-yellow-500 outline-none"
+                           className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-gray-50 focus:ring-2 focus:ring-yellow-500 outline-none"
                            placeholder="Describe your experience (optional)..."
                            rows={3}
                        />
@@ -821,7 +821,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                        <input 
                            value={currentMessage} 
                            onChange={e => setCurrentMessage(e.target.value)}
-                           className="flex-grow border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-purple-500 !text-gray-900 !bg-white placeholder-gray-500"
+                           className="flex-grow border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-purple-500 !text-gray-900 !bg-gray-50 placeholder-gray-500"
                            placeholder="Type a message..."
                        />
                        <Button type="submit" isLoading={isSending} className="bg-purple-600 hover:bg-purple-700 px-4">Send</Button>
