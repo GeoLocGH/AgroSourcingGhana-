@@ -415,7 +415,60 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
         {selectedItem && (
            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedItem(null)}>
                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                   {/* ... Details Content ... */}
+                   <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-800">{selectedItem.name}</h3>
+                            <p className="text-sm text-gray-500 flex items-center gap-1">
+                                <GridIcon className="w-3 h-3" /> {selectedItem.location}
+                            </p>
+                        </div>
+                        <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
+                   </div>
+
+                   {/* Image Slideshow */}
+                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200 group">
+                        {getSelectedImages().length > 0 ? (
+                            getSelectedImages().map((url, idx) => (
+                                <img 
+                                    key={idx}
+                                    src={url} 
+                                    alt={`${selectedItem.name} ${idx}`}
+                                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${idx === currentImageIndex ? 'opacity-100' : 'opacity-0'}`}
+                                />
+                            ))
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-gray-400">No Image</div>
+                        )}
+                        
+                        {getSelectedImages().length > 1 && (
+                            <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+                                {getSelectedImages().map((_, idx) => (
+                                    <div key={idx} className={`w-1.5 h-1.5 rounded-full ${idx === currentImageIndex ? 'bg-white' : 'bg-white/50'}`} />
+                                ))}
+                            </div>
+                        )}
+                   </div>
+
+                   <div className="space-y-4 mb-6">
+                        <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                            <span className="text-2xl font-bold text-indigo-700">GHS {selectedItem.price_per_day.toFixed(2)}<span className="text-sm text-gray-500 font-normal">/day</span></span>
+                            <span className="bg-indigo-50 text-indigo-800 px-2 py-1 rounded text-xs font-bold uppercase">{selectedItem.type}</span>
+                        </div>
+
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-700 mb-1">Description</h4>
+                            <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{selectedItem.description || "No description provided."}</p>
+                        </div>
+
+                        {ownerStats && (
+                            <div className="flex items-center gap-1 bg-yellow-50 p-2 rounded text-yellow-800 text-sm">
+                                <StarIcon className="w-4 h-4 text-yellow-500" />
+                                <span className="font-bold">{ownerStats.avg.toFixed(1)}</span>
+                                <span className="text-yellow-600">({ownerStats.count} reviews)</span>
+                            </div>
+                        )}
+                   </div>
+
                    {!canManage(selectedItem) && (
                        <div className="grid grid-cols-2 gap-3">
                            <Button onClick={() => { setSelectedItem(null); handleOpenInquiry(selectedItem); }} className="bg-indigo-600 hover:bg-indigo-700">

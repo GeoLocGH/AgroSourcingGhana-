@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { ShoppingCartIcon, SearchIcon, PlusIcon, MessageSquareIcon, XIcon, UploadIcon, PhoneIcon, MailIcon, HeartIcon, TagIcon, PencilIcon, TrashIcon, GridIcon, ShieldCheckIcon, StarIcon, DoubleCheckIcon } from './common/icons';
+import { ShoppingCartIcon, SearchIcon, PlusIcon, MessageSquareIcon, XIcon, UploadIcon, PhoneIcon, MailIcon, HeartIcon, TagIcon, PencilIcon, TrashIcon, GridIcon, ShieldCheckIcon, StarIcon, DoubleCheckIcon, UserCircleIcon } from './common/icons';
 import { supabase } from '../services/supabase';
 import { uploadUserFile } from '../services/storageService';
 import { fileToDataUri } from '../utils';
@@ -417,19 +417,86 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
            }
        </div>
 
-       {/* Details Modal (Unchanged) */}
+       {/* Details Modal */}
        {detailsItem && (
            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setDetailsItem(null)}>
-               {/* ... Details Modal Content ... */}
                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => { e.stopPropagation(); /* Prevent close on card click */ }}>
-                   {/* ... */}
-                   <Button onClick={() => { 
-                       const itemToChat = detailsItem;
-                       setDetailsItem(null); 
-                       handleOpenChat(itemToChat); 
-                   }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
-                       <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
-                   </Button>
+                   <div className="flex justify-between items-start mb-4">
+                       <h3 className="text-xl font-bold text-gray-800">{detailsItem.title}</h3>
+                       <button onClick={() => setDetailsItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   
+                   <div className="relative h-64 bg-gray-100 rounded-lg overflow-hidden mb-4 border border-gray-200 group">
+                       {detailsItem.image_urls && detailsItem.image_urls.length > 0 ? (
+                           detailsItem.image_urls.map((url, idx) => (
+                               <img 
+                                   key={idx}
+                                   src={url} 
+                                   alt={`${detailsItem.title} - view ${idx + 1}`}
+                                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${idx === currentImageIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                               />
+                           ))
+                       ) : (
+                           <img 
+                               src='https://placehold.co/600x400?text=No+Image' 
+                               alt={detailsItem.title}
+                               className="w-full h-full object-cover"
+                           />
+                       )}
+                       
+                       <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
+                           {detailsItem.location_name || 'Location Unknown'}
+                       </div>
+                   </div>
+
+                   <div className="space-y-4 text-gray-800">
+                       <div className="flex justify-between items-center border-b pb-3">
+                           <span className="text-2xl font-bold text-green-700">GHS {detailsItem.price.toFixed(2)}</span>
+                           <div className="flex flex-col items-end">
+                               <span className="text-xs text-gray-500">Category</span>
+                               <span className="font-medium bg-gray-100 px-2 py-0.5 rounded">{detailsItem.category}</span>
+                           </div>
+                       </div>
+
+                       <div>
+                           <h4 className="font-bold text-sm text-gray-700 mb-1">Description</h4>
+                           <div className="bg-gray-50 p-3 rounded border border-gray-100 text-sm text-gray-600 space-y-2">
+                               <p className="leading-relaxed whitespace-pre-wrap">
+                                   <span className="font-bold text-gray-800 block mb-1">Usage: </span>
+                                   {detailsItem.usage_instructions || 'No specific usage instructions provided.'}
+                               </p>
+                               {detailsItem.storage_recommendations && (
+                                   <p className="leading-relaxed whitespace-pre-wrap border-t border-gray-200 pt-2 mt-2">
+                                       <span className="font-bold text-gray-800 block mb-1">Storage: </span>
+                                       {detailsItem.storage_recommendations}
+                                   </p>
+                               )}
+                           </div>
+                       </div>
+
+                       <div className="flex items-center justify-between text-sm text-gray-500 bg-gray-50 p-2 rounded">
+                           <span className="flex items-center gap-1"><UserCircleIcon className="w-4 h-4"/> Seller: {detailsItem.seller_name}</span>
+                           {sellerStats && (
+                               <span className="flex items-center gap-1 text-yellow-600 font-bold">
+                                   <StarIcon className="w-4 h-4 text-yellow-500" /> {sellerStats.avg.toFixed(1)} ({sellerStats.count})
+                               </span>
+                           )}
+                       </div>
+
+                       {user?.uid !== detailsItem.user_id ? (
+                           <Button onClick={() => { 
+                               const itemToChat = detailsItem;
+                               setDetailsItem(null); 
+                               handleOpenChat(itemToChat); 
+                           }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
+                               <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
+                           </Button>
+                       ) : (
+                           <div className="p-3 bg-gray-100 text-center rounded-lg text-gray-500 text-sm font-medium border border-gray-200">
+                               <UserCircleIcon className="w-4 h-4 inline mr-1" /> This is your listing
+                           </div>
+                       )}
+                   </div>
                </Card>
            </div>
        )}
