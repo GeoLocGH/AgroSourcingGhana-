@@ -277,7 +277,7 @@ export const StarIcon: React.FC<{ className?: string }> = ({ className }) => (
 export const TractorIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className || "w-6 h-6"} fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path d="M5 12.5c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5-2.015 4.5-4.5 4.5-4.5-2.015-4.5-4.5z" />
-    <path d="M16.5 14c-1.381 0-2.5 1.119-2.5 2.5s1.119 2.5 2.5 2.5 2.5-1.119 2.5-2.5-1.119-2.5-2.5-2.5z" />
+    <path d="M16.5 14c-1.381 0-2.5 1.119-2.5 2.5s1.119 2.5 2.5 2.5 2.5-1.119 2.5-2.5-1.119-2.5-2.5-1.119-2.5-2.5-2.5z" />
     <path d="M16 6h-5l-1 4h6l-1-4z" />
     <path d="M13.5 4h-3l-1 2h6l-2-2z" />
     <path d="M18 10h-1.5l.5-2h2l-1 2z" />
@@ -409,4 +409,17 @@ export const HeartIcon: React.FC<{ className?: string, filled?: boolean }> = ({ 
   <svg className={className || "w-6 h-6"} fill={filled ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
   </svg>
+);
+
+export const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className || "w-4 h-4"} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+);
+
+export const DoubleCheckIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className || "w-4 h-4"} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 13l2.5 2.5L22 8" />
+    </svg>
 );
