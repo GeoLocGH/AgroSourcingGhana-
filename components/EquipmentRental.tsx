@@ -122,7 +122,9 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
   }, []);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if(isChatVisible) {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, isChatVisible]);
 
   // Slideshow Logic for Details Modal
@@ -156,6 +158,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
 
   // Chat Listener
   useEffect(() => {
+    let mounted = true;
     if (!chatContext?.id || !isChatVisible || !user?.uid) return;
 
     const fetchMessages = async () => {
@@ -173,7 +176,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
             .or(`sender_id.eq.${user.uid},receiver_id.eq.${user.uid}`)
             .order('created_at', { ascending: true });
         
-        if (data) {
+        if (mounted && data) {
              const mappedMessages = data.map((msg: any) => ({
                 id: msg.id,
                 sender: msg.sender_id === user.uid ? 'user' : 'seller',
@@ -182,7 +185,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                 is_read: msg.is_read
             }));
             setMessages(mappedMessages);
-        } else {
+        } else if (mounted) {
             setMessages([]);
         }
     };
@@ -199,6 +202,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                 filter: `item_id=eq.${chatContext.id}` 
             }, 
             (payload) => {
+                if (!mounted) return;
+
                 if (payload.eventType === 'INSERT') {
                     const newRecord = payload.new;
                     
@@ -211,14 +216,16 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                             supabase.from('chats').update({ is_read: true }).eq('id', newRecord.id);
                         }
 
-                        const newMessage = {
-                            id: newRecord.id,
-                            sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
-                            text: newRecord.message_text,
-                            timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            is_read: newRecord.is_read
-                        };
-                        setMessages((prev) => [...prev, newMessage]);
+                        setMessages((prev) => {
+                            if (prev.some(m => m.id === newRecord.id)) return prev;
+                            return [...prev, {
+                                id: newRecord.id,
+                                sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
+                                text: newRecord.message_text,
+                                timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                                is_read: newRecord.is_read
+                            }];
+                        });
                     }
                 }
                 if (payload.eventType === 'UPDATE') {
@@ -229,7 +236,10 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
         )
         .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { 
+        mounted = false;
+        supabase.removeChannel(channel); 
+    };
   }, [chatContext, isChatVisible, user?.uid]);
 
 
@@ -329,7 +339,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
   const openEditModal = (item: EquipmentItem) => { /* ... */ };
   const resetForm = () => { /* ... */ };
   const canManage = (item: EquipmentItem) => { /* ... */ return false; };
-  const goToMyEquipment = () => { /* ... */ };
+  const goToMyEquipment = () => { setActiveView('PROFILE'); };
 
   return (
     <div className="space-y-6">
@@ -385,7 +395,6 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
             {/* ... Item Cards ... */}
             {loading ? <div className="col-span-full text-center"><Spinner className="w-8 h-8"/></div> : filteredItems.map(item => (
                 <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
-                    {/* ... Card Content ... */}
                     <div 
                         className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-200 group overflow-hidden cursor-pointer"
                         onClick={() => setSelectedItem(item)}
@@ -395,11 +404,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                             alt={item.name} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                         />
-                        {/* ... */}
                     </div>
-                    {/* ... */}
                     <div className="mt-auto pt-2 grid grid-cols-2 gap-2">
-                        {/* ... */}
                         <Button onClick={() => setSelectedItem(item)} className="text-xs py-2 bg-gray-100 !text-gray-900 hover:bg-gray-200">
                             Details
                         </Button>
@@ -483,36 +489,8 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
            </div>
        )}
 
-       {/* Rating Modal (Unchanged) */}
-       {showRatingModal && selectedItem && (
-           <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
-               {/* ... */}
-           </div>
-       )}
-
-        {/* Form Modal (Unchanged) */}
-        {isFormVisible && (
-             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                 {/* ... */}
-             </div>
-        )}
-        
-        {/* Delete Modal (Unchanged) */}
-        {isDeleteModalVisible && (
-            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                {/* ... */}
-            </div>
-        )}
-        
-        {/* Inquiry Modal (Unchanged) */}
-        {isInquiryVisible && inquiryItem && (
-             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                {/* ... */}
-            </div>
-        )}
-        
-        {/* Chat Modal */}
-        {isChatVisible && chatContext && (
+       {/* Chat Modal */}
+       {isChatVisible && chatContext && (
              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-lg w-full max-w-md flex flex-col h-[70vh]">
                     <div className="p-4 border-b flex justify-between items-center">

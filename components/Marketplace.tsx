@@ -89,8 +89,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
     return () => { subscription.unsubscribe(); };
   }, []);
 
-  // ... (Slideshow effects remain same)
-
   // Slideshow Logic for Details Modal
   useEffect(() => {
       if (detailsItem) {
@@ -174,10 +172,13 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
   // Chat logic
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if(isChatVisible) {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, isChatVisible]);
 
   useEffect(() => {
+    let mounted = true;
     if (!chatContext?.id || !isChatVisible || !user?.uid) return;
 
     const fetchMessages = async () => {
@@ -195,7 +196,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             .or(`sender_id.eq.${user.uid},receiver_id.eq.${user.uid}`)
             .order('created_at', { ascending: true });
         
-        if (data) {
+        if (mounted && data) {
              const mappedMessages = data.map((msg: any) => ({
                 id: msg.id,
                 sender: msg.sender_id === user.uid ? 'user' : 'seller',
@@ -219,6 +220,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                 filter: `item_id=eq.${chatContext.id}` 
             }, 
             (payload) => {
+                if (!mounted) return;
+
                 if (payload.eventType === 'INSERT') {
                     const newRecord = payload.new;
                     const isRelevant = 
@@ -231,13 +234,16 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                             supabase.from('chats').update({ is_read: true }).eq('id', newRecord.id);
                         }
 
-                        setMessages(prev => [...prev, {
-                            id: newRecord.id,
-                            sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
-                            text: newRecord.message_text,
-                            timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            is_read: newRecord.is_read
-                        }]);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === newRecord.id)) return prev;
+                            return [...prev, {
+                                id: newRecord.id,
+                                sender: newRecord.sender_id === user.uid ? 'user' : 'seller',
+                                text: newRecord.message_text,
+                                timestamp: new Date(newRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                                is_read: newRecord.is_read
+                            }];
+                        });
                     }
                 }
                 if (payload.eventType === 'UPDATE') {
@@ -248,7 +254,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
         )
         .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { 
+        mounted = false;
+        supabase.removeChannel(channel); 
+    };
   }, [chatContext, isChatVisible, user?.uid]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -317,7 +326,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   };
 
   const handleLike = async (item: MarketplaceItem) => { /*...*/ };
-  const filteredItems = items.filter(item => { /*...*/ return true; }); // Simplified for brevity
+  const filteredItems = items.filter(item => {
+      const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+  });
+  
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => { /*...*/ };
   const removeImage = (index: number) => { /*...*/ };
   const handleUseMyLocation = () => { /*...*/ };
@@ -327,7 +341,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const handleDeleteItem = async () => { /*...*/ };
   const openEditModal = (item: MarketplaceItem) => { /*...*/ };
   const isOwner = (item: MarketplaceItem) => user?.uid === item.user_id;
-  const goToMyStore = () => { /*...*/ };
+  const goToMyStore = () => { setActiveView('PROFILE'); };
 
   return (
     <div className="space-y-6">
@@ -383,21 +397,18 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
            </div>
        </div>
 
-       {/* Items Grid (Unchanged mostly, just ensure handlers are passed) */}
+       {/* Items Grid */}
        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            {loading ? <p className="col-span-full text-center py-10">Loading marketplace...</p> : 
             filteredItems.map(item => (
                 <Card key={item.id} className="flex flex-col h-full hover:shadow-lg transition-shadow overflow-hidden group">
-                    {/* ... Card content ... */}
                     <div className="relative h-48 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4 bg-gray-100 overflow-hidden cursor-pointer" onClick={() => setDetailsItem(item)}>
                         <img 
                             src={item.image_urls?.[0] || 'https://placehold.co/600x400?text=No+Image'} 
                             alt={item.title} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                         />
-                        {/* ... */}
                     </div>
-                    {/* ... */}
                     <div className="mt-auto grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
                         <Button 
                             onClick={() => setDetailsItem(item)} 
@@ -499,35 +510,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                    </div>
                </Card>
            </div>
-       )}
-
-       {/* Rating Modal */}
-       {showRatingModal && detailsItem && (
-           <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 animate-fade-in">
-               <Card className="w-full max-w-sm text-center">
-                   {/* ... Rating UI ... */}
-                   <h3 className="text-lg font-bold text-gray-900 mb-2">Rate {detailsItem.seller_name}</h3>
-                   {/* ... */}
-                   <div className="flex gap-2">
-                       <Button onClick={() => setShowRatingModal(false)} className="flex-1 bg-gray-200 !text-gray-900">Cancel</Button>
-                       <Button onClick={handleSubmitRating} isLoading={isSubmitting} disabled={ratingValue === 0} className="flex-1">Submit</Button>
-                   </div>
-               </Card>
-           </div>
-       )}
-
-       {/* Add/Edit Modal (Unchanged) */}
-       {showAddModal && (
-           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-               {/* ... */}
-           </div>
-       )}
-
-       {/* Delete Modal (Unchanged) */}
-       {showDeleteModal && (
-            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                {/* ... */}
-            </div>
        )}
 
        {/* Chat Modal */}
