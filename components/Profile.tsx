@@ -20,7 +20,7 @@ interface ProfileProps {
 
 interface ChatSession {
     item_id: string;
-    sender_id: string;
+    sender_id: string; // The ID of the OTHER person
     last_message: string;
     last_time: string;
     sender_name?: string; 
@@ -280,6 +280,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       if (!user || !user.uid) return;
       setLoadingInbox(true);
       try {
+          // 1. Fetch Inquiries
           const { data: inqData } = await supabase
             .from('inquiries')
             .select('*')
@@ -287,27 +288,62 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
             .order('created_at', { ascending: false });
           setInquiries((inqData as Inquiry[]) || []);
 
+          // 2. Fetch Chat History (where I am sender OR receiver)
           const { data: chatData } = await supabase
              .from('chats')
              .select('*')
-             .eq('receiver_id', user.uid)
+             .or(`sender_id.eq.${user.uid},receiver_id.eq.${user.uid}`)
              .order('created_at', { ascending: false })
-             .limit(50);
+             .limit(100);
 
           if (chatData) {
               const sessionsMap = new Map<string, ChatSession>();
+              
               chatData.forEach((msg: any) => {
-                  const key = `${msg.item_id}_${msg.sender_id}`;
+                  // Determine the partner (the other person in the chat)
+                  const isMe = msg.sender_id === user.uid;
+                  const partnerId = isMe ? msg.receiver_id : msg.sender_id;
+                  
+                  // Key to unique identify a thread: item_id + partner_id
+                  const key = `${msg.item_id}_${partnerId}`;
+                  
                   if (!sessionsMap.has(key)) {
                       sessionsMap.set(key, {
                           item_id: msg.item_id,
-                          sender_id: msg.sender_id,
+                          sender_id: partnerId, // Effectively the 'Partner ID'
                           last_message: msg.message_text,
-                          last_time: msg.created_at
+                          last_time: msg.created_at,
+                          sender_name: 'Loading...',
+                          item_title: 'Loading Item...'
                       });
                   }
               });
-              setChatSessions(Array.from(sessionsMap.values()));
+              
+              const sessions = Array.from(sessionsMap.values());
+              
+              // 3. Enrich with Names and Titles
+              const userIds = [...new Set(sessions.map(s => s.sender_id))];
+              const itemIds = [...new Set(sessions.map(s => s.item_id))];
+
+              // Fetch User Names
+              const { data: usersData } = await supabase.from('users').select('id, name').in('id', userIds);
+              const userMap = new Map(usersData?.map((u: any) => [u.id, u.name]));
+
+              // Fetch Item Titles (Try Marketplace then Equipment)
+              const { data: marketData } = await supabase.from('marketplace').select('id, title').in('id', itemIds);
+              const { data: equipData } = await supabase.from('equipment').select('id, name').in('id', itemIds);
+              
+              const itemMap = new Map();
+              marketData?.forEach((m: any) => itemMap.set(m.id, m.title));
+              equipData?.forEach((e: any) => itemMap.set(e.id, e.name));
+
+              const enrichedSessions = sessions.map(s => ({
+                  ...s,
+                  sender_name: userMap.get(s.sender_id) || 'Unknown User',
+                  item_title: itemMap.get(s.item_id) || 'Unknown Item'
+              }));
+
+              setChatSessions(enrichedSessions);
           }
 
       } catch (err) {
@@ -528,7 +564,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       setActiveChatContext({
           itemId: session.item_id,
           otherUserId: session.sender_id,
-          title: `Chat about Item #${session.item_id}`
+          title: `Chat: ${session.item_title || 'Item'}`
       });
       setIsChatOpen(true);
       loadChatMessages(session.item_id, session.sender_id);
@@ -731,6 +767,69 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                                   </p>
                               </div>
                               <div className="md:col-span-2"><label className="text-xs text-gray-500 uppercase">User ID</label><p className="font-mono text-xs bg-gray-100 p-2 rounded">{user.uid}</p></div>
+                          </div>
+                      )}
+
+                      {/* --- INBOX TAB --- */}
+                      {activeTab === 'INBOX' && (
+                          <div className="space-y-8">
+                              {/* Inquiries Section */}
+                              <div>
+                                  <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2">
+                                      <MailIcon className="w-5 h-5 text-gray-500"/> Received Inquiries
+                                  </h4>
+                                  {inquiries.length === 0 ? (
+                                      <p className="text-gray-500 text-sm text-center py-4 bg-gray-50 rounded border border-dashed">No inquiries yet.</p>
+                                  ) : (
+                                      <div className="space-y-3">
+                                          {inquiries.map(inq => (
+                                              <div key={inq.id} className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                                                  <div className="flex justify-between items-start mb-1">
+                                                      <span className="font-bold text-gray-900">{inq.subject || 'Inquiry'}</span>
+                                                      <span className="text-xs text-gray-400">{inq.created_at ? new Date(inq.created_at).toLocaleDateString() : 'Recent'}</span>
+                                                  </div>
+                                                  <p className="text-sm text-gray-600 mb-2 line-clamp-2">"{inq.message}"</p>
+                                                  <div className="flex items-center gap-4 text-xs text-gray-500 bg-gray-100 p-2 rounded">
+                                                      <span className="flex items-center gap-1"><UserIcon className="w-3 h-3"/> {inq.name}</span>
+                                                      <span className="flex items-center gap-1"><PhoneIcon className="w-3 h-3"/> {inq.phone}</span>
+                                                      {inq.email && <span className="flex items-center gap-1"><MailIcon className="w-3 h-3"/> {inq.email}</span>}
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  )}
+                              </div>
+
+                              {/* Chats Section */}
+                              <div>
+                                  <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2">
+                                      <MessageSquareIcon className="w-5 h-5 text-gray-500"/> Active Chats
+                                  </h4>
+                                  {chatSessions.length === 0 ? (
+                                      <p className="text-gray-500 text-sm text-center py-4 bg-gray-50 rounded border border-dashed">No active chats.</p>
+                                  ) : (
+                                      <div className="grid grid-cols-1 gap-3">
+                                          {chatSessions.map((session, idx) => (
+                                              <div key={idx} className="p-4 border rounded-lg hover:bg-gray-50 transition-colors flex justify-between items-center">
+                                                  <div className="flex items-center gap-3 overflow-hidden">
+                                                      <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 flex-shrink-0">
+                                                          <UserIcon className="w-6 h-6" />
+                                                      </div>
+                                                      <div className="min-w-0">
+                                                          <p className="font-bold text-gray-900 truncate">{session.sender_name}</p>
+                                                          <p className="text-xs text-gray-500 truncate mb-0.5">{session.item_title}</p>
+                                                          <p className="text-sm text-gray-600 truncate italic">"{session.last_message}"</p>
+                                                      </div>
+                                                  </div>
+                                                  <div className="flex flex-col items-end gap-2 ml-2 flex-shrink-0">
+                                                      <span className="text-xs text-gray-400">{new Date(session.last_time).toLocaleDateString()}</span>
+                                                      <Button onClick={() => openChat(session)} className="text-xs py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700">Open Chat</Button>
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  )}
+                              </div>
                           </div>
                       )}
 

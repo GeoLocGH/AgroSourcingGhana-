@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import type { User, View } from '../types';
 import Button from './common/Button';
 import Card from './common/Card';
-import { UserCircleIcon, XIcon, UploadIcon, MailIcon } from './common/icons';
+import { UserCircleIcon, XIcon, UploadIcon, MailIcon, AlertTriangleIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import { supabase } from '../services/supabase';
 import { uploadUserFile } from '../services/storageService';
@@ -144,7 +144,7 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
 
           // Scenario A: "Database error saving new user" (Trigger failure)
           // We try to login (in case user was created but trigger failed) or standard signup without metadata.
-          if (signUpError.message && signUpError.message.includes("Database error saving new user")) {
+          if (signUpError.message && (signUpError.message.includes("Database error saving new user") || signUpError.message.includes("trigger"))) {
               
               // A1. Try fallback login first
               const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -219,7 +219,13 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
 
     } catch (error: any) {
       console.error("Registration final error", error);
-      setAuthError(error.message || "Failed to create account.");
+      const msg = error.message || "Failed to create account.";
+      
+      if (msg.includes("Database error saving new user")) {
+          setAuthError("System Error: The backend database is rejecting the user. Please ask the administrator to run the Database Setup SQL script.");
+      } else {
+          setAuthError(msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -451,8 +457,9 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
               </button>
             </div>
             {authError && (
-               <div className="mb-4 bg-red-100 text-red-700 p-3 rounded-lg text-sm font-medium">
-                 {authError}
+               <div className="mb-4 bg-red-100 text-red-700 p-3 rounded-lg text-sm font-medium flex items-center gap-2">
+                 <AlertTriangleIcon className="w-5 h-5 flex-shrink-0" />
+                 <span>{authError}</span>
                </div>
             )}
             <form onSubmit={handleLoginSubmit}>
@@ -509,7 +516,8 @@ const Auth: React.FC<AuthProps> = ({ user, onLogin, onLogout, setActiveView, mod
             </div>
             
             {authError && (
-               <div className="mb-4 bg-red-100 text-red-700 p-3 rounded-lg text-sm font-medium flex justify-between items-center">
+               <div className="mb-4 bg-red-100 text-red-700 p-3 rounded-lg text-sm font-medium flex items-center gap-2">
+                 <AlertTriangleIcon className="w-5 h-5 flex-shrink-0" />
                  <span>{authError}</span>
                </div>
             )}
