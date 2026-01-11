@@ -42,6 +42,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   
   // Add Item Form State
   const [newItem, setNewItem] = useState<Partial<MarketplaceItem>>({
@@ -67,11 +68,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
   const [currentMessage, setCurrentMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // Edit/Delete State
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<MarketplaceItem | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { addNotification } = useNotifications();
   const { location, error: geoError } = useGeolocation();
@@ -160,7 +156,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                   count: data.length
               });
           } else {
-              setSellerStats({ avg: 0, count: 0 });
+              setSellerStats(null);
           }
       } catch (err) {
           console.error("Error fetching rating", err);
@@ -168,7 +164,34 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
       }
   };
 
-  const handleSubmitRating = async (e: React.FormEvent) => { /* ... (Unchanged) */ };
+  const submitRating = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!detailsItem || !user) return;
+      
+      setIsSubmittingRating(true);
+      try {
+          const { error } = await supabase.from('user_reviews').insert({
+              reviewer_id: user.uid,
+              target_user_id: detailsItem.user_id,
+              rating: ratingValue,
+              comment: ratingComment,
+              created_at: new Date().toISOString()
+          });
+
+          if (error) throw error;
+
+          addNotification({ type: 'market', title: 'Review Submitted', message: 'Thank you for rating the seller!', view: 'MARKETPLACE' });
+          setShowRatingModal(false);
+          setRatingValue(0);
+          setRatingComment('');
+          fetchSellerRating(detailsItem.user_id); // Refresh stats
+      } catch (err: any) {
+          console.error("Rating error:", err);
+          addNotification({ type: 'market', title: 'Error', message: 'Could not submit review.', view: 'MARKETPLACE' });
+      } finally {
+          setIsSubmittingRating(false);
+      }
+  };
 
   // Chat logic
   useEffect(() => {
@@ -299,7 +322,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
       }
   };
 
-  // ... (Other handlers unchanged)
   const handleOpenChat = (item: MarketplaceItem) => {
       if (!user?.uid) {
           onRequireLogin();
@@ -325,27 +347,108 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
       setIsChatVisible(true);
   };
 
-  const handleLike = async (item: MarketplaceItem) => { /*...*/ };
   const filteredItems = items.filter(item => {
       const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
       return matchesSearch && matchesCategory;
   });
   
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => { /*...*/ };
-  const removeImage = (index: number) => { /*...*/ };
-  const handleUseMyLocation = () => { /*...*/ };
-  const resetForm = () => { /*...*/ };
-  const handleAddItem = async (e: React.FormEvent) => { /*...*/ };
-  const handleUpdateItem = async (e: React.FormEvent) => { /*...*/ };
-  const handleDeleteItem = async () => { /*...*/ };
-  const openEditModal = (item: MarketplaceItem) => { /*...*/ };
-  const isOwner = (item: MarketplaceItem) => user?.uid === item.user_id;
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          setItemImages([file]); // Single image for now, array for future
+          const preview = URL.createObjectURL(file);
+          setImagePreviews([preview]);
+      }
+  };
+
+  const removeImage = (index: number) => {
+      setItemImages([]);
+      setImagePreviews([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleUseMyLocation = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (location) {
+          setNewItem(prev => ({
+              ...prev,
+              location_name: `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
+              location_lat: location.latitude,
+              location_lng: location.longitude
+          }));
+      } else {
+          addNotification({ type: 'market', title: 'Location Error', message: 'GPS location not available.', view: 'MARKETPLACE' });
+      }
+  };
+
+  const resetForm = () => {
+      setNewItem({
+          title: '',
+          category: 'Produce',
+          price: 0,
+          usage_instructions: '',
+          location_name: '',
+      });
+      setItemImages([]);
+      setImagePreviews([]);
+  };
+
+  const handleAddItem = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) {
+          onRequireLogin();
+          return;
+      }
+      if (!newItem.title || !newItem.price) {
+          addNotification({ type: 'market', title: 'Validation', message: 'Please fill in required fields.', view: 'MARKETPLACE' });
+          return;
+      }
+
+      setIsSubmitting(true);
+      try {
+          let imageUrl = '';
+          if (itemImages.length > 0) {
+              const res = await uploadUserFile(user.uid, itemImages[0], 'marketplace', '', `Product: ${newItem.title}`);
+              imageUrl = res.file_url;
+          }
+
+          const productPayload = {
+              user_id: user.uid,
+              seller_name: user.name,
+              seller_phone: user.phone || '',
+              seller_email: user.email,
+              title: newItem.title,
+              category: newItem.category,
+              price: newItem.price,
+              usage_instructions: newItem.usage_instructions,
+              location_name: newItem.location_name || 'Ghana',
+              location_lat: newItem.location_lat,
+              location_lng: newItem.location_lng,
+              image_url: imageUrl,
+              image_urls: [imageUrl],
+              created_at: new Date().toISOString()
+          };
+
+          const { error } = await supabase.from('marketplace').insert([productPayload]);
+          if (error) throw error;
+
+          addNotification({ type: 'market', title: 'Success', message: 'Item listed for sale!', view: 'MARKETPLACE' });
+          setShowAddModal(false);
+          resetForm();
+      } catch (err: any) {
+          console.error(err);
+          addNotification({ type: 'market', title: 'Error', message: err.message || 'Failed to list item.', view: 'MARKETPLACE' });
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
   const goToMyStore = () => { setActiveView('PROFILE'); };
 
   return (
     <div className="space-y-6">
-       {/* ... Header and Search ... */}
+       {/* Header and Search */}
        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
            <div className="flex items-center gap-4">
                <div className="p-4 bg-green-100 rounded-full text-green-800 shadow-sm border border-green-200">
@@ -374,7 +477,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
        {/* Search & Filter */}
        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4">
-           {/* ... Search UI ... */}
            <div className="relative flex-grow">
                <input 
                    value={searchTerm}
@@ -408,7 +510,24 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
                             alt={item.title} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                         />
+                        <span className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                            {item.category}
+                        </span>
                     </div>
+                    
+                    {/* Item Details in Card */}
+                    <div className="mb-4">
+                        <div className="flex justify-between items-start">
+                            <h3 className="text-lg font-bold text-gray-900 leading-tight truncate w-full mb-1">{item.title}</h3>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-green-700 font-bold">GHS {item.price.toFixed(2)}</span>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                                <UserCircleIcon className="w-3 h-3"/> {item.seller_name}
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="mt-auto grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
                         <Button 
                             onClick={() => setDetailsItem(item)} 
@@ -427,6 +546,112 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
             ))
            }
        </div>
+
+        {/* Sell Item Modal */}
+        {showAddModal && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in">
+                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-800">List New Item</h3>
+                        <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
+                    </div>
+                    
+                    <form onSubmit={handleAddItem} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Product Title</label>
+                            <input 
+                                required
+                                value={newItem.title} 
+                                onChange={e => setNewItem({...newItem, title: e.target.value})} 
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                placeholder="e.g. Fresh Tomatoes"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                <select 
+                                    value={newItem.category} 
+                                    onChange={e => setNewItem({...newItem, category: e.target.value as any})} 
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                >
+                                    {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Price (GHS)</label>
+                                <input 
+                                    type="number" 
+                                    required
+                                    value={newItem.price} 
+                                    onChange={e => setNewItem({...newItem, price: parseFloat(e.target.value)})} 
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    value={newItem.location_name} 
+                                    onChange={e => setNewItem({...newItem, location_name: e.target.value})} 
+                                    className="flex-grow p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    placeholder="Town or Region"
+                                />
+                                <button type="button" onClick={handleUseMyLocation} className="px-3 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-gray-600" title="Use GPS">
+                                    <GridIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea 
+                                value={newItem.usage_instructions} 
+                                onChange={e => setNewItem({...newItem, usage_instructions: e.target.value})} 
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                rows={3}
+                                placeholder="Quantity, quality, delivery options..."
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Photo</label>
+                            <div className="flex items-center gap-4">
+                                <button 
+                                    type="button" 
+                                    onClick={() => fileInputRef.current?.click()} 
+                                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-700 text-sm"
+                                >
+                                    <UploadIcon className="w-4 h-4" /> Upload
+                                </button>
+                                <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
+                                
+                                {imagePreviews.length > 0 && (
+                                    <div className="relative">
+                                        <img src={imagePreviews[0]} alt="Preview" className="h-12 w-12 object-cover rounded border" />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removeImage(0)}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-sm"
+                                        >
+                                            <XIcon className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <Button type="submit" isLoading={isSubmitting} className="w-full bg-purple-600 hover:bg-purple-700">
+                            List Item
+                        </Button>
+                    </form>
+                </Card>
+            </div>
+        )}
 
        {/* Details Modal */}
        {detailsItem && (
@@ -487,27 +712,78 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
 
                        <div className="flex items-center justify-between text-sm text-gray-500 bg-gray-50 p-2 rounded">
                            <span className="flex items-center gap-1"><UserCircleIcon className="w-4 h-4"/> Seller: {detailsItem.seller_name}</span>
-                           {sellerStats && (
+                           {sellerStats ? (
                                <span className="flex items-center gap-1 text-yellow-600 font-bold">
                                    <StarIcon className="w-4 h-4 text-yellow-500" /> {sellerStats.avg.toFixed(1)} ({sellerStats.count})
                                </span>
+                           ) : (
+                               <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded border">New Seller</span>
                            )}
                        </div>
 
                        {user?.uid !== detailsItem.user_id ? (
-                           <Button onClick={() => { 
-                               const itemToChat = detailsItem;
-                               setDetailsItem(null); 
-                               handleOpenChat(itemToChat); 
-                           }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
-                               <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
-                           </Button>
+                           <div className="space-y-2">
+                               <Button onClick={() => { 
+                                   const itemToChat = detailsItem;
+                                   setDetailsItem(null); 
+                                   handleOpenChat(itemToChat); 
+                               }} className="w-full bg-green-700 hover:bg-green-800 py-3 text-base shadow-lg">
+                                   <MessageSquareIcon className="w-5 h-5 mr-2" /> Chat with Seller to Buy
+                               </Button>
+                               <button 
+                                   onClick={() => {
+                                       if(!user) { onRequireLogin(); return; }
+                                       setRatingValue(0);
+                                       setRatingComment('');
+                                       setShowRatingModal(true);
+                                   }}
+                                   className="w-full py-2 text-sm text-yellow-600 hover:bg-yellow-50 rounded border border-yellow-200 font-medium transition-colors"
+                               >
+                                   Rate Seller
+                               </button>
+                           </div>
                        ) : (
                            <div className="p-3 bg-gray-100 text-center rounded-lg text-gray-500 text-sm font-medium border border-gray-200">
                                <UserCircleIcon className="w-4 h-4 inline mr-1" /> This is your listing
                            </div>
                        )}
                    </div>
+               </Card>
+           </div>
+       )}
+
+       {/* Rating Modal */}
+       {showRatingModal && detailsItem && (
+           <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 animate-fade-in">
+               <Card className="w-full max-w-sm">
+                   <div className="flex justify-between items-center mb-4">
+                       <h3 className="text-lg font-bold text-gray-800">Rate {detailsItem.seller_name}</h3>
+                       <button onClick={() => setShowRatingModal(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   <form onSubmit={submitRating} className="space-y-4">
+                       <div className="flex justify-center gap-2 mb-4">
+                           {[1, 2, 3, 4, 5].map((star) => (
+                               <button
+                                   key={star}
+                                   type="button"
+                                   onClick={() => setRatingValue(star)}
+                                   className="focus:outline-none transform hover:scale-110 transition-transform"
+                               >
+                                   <StarIcon className={`w-8 h-8 ${star <= ratingValue ? 'text-yellow-500' : 'text-gray-300'}`} />
+                               </button>
+                           ))}
+                       </div>
+                       <textarea 
+                           value={ratingComment}
+                           onChange={(e) => setRatingComment(e.target.value)}
+                           className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-yellow-500 outline-none"
+                           placeholder="Describe your experience (optional)..."
+                           rows={3}
+                       />
+                       <Button type="submit" isLoading={isSubmittingRating} disabled={ratingValue === 0} className="w-full bg-yellow-600 hover:bg-yellow-700">
+                           Submit Review
+                       </Button>
+                   </form>
                </Card>
            </div>
        )}

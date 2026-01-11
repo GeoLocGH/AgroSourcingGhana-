@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import Button from './common/Button';
-import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon, PhoneIcon, MailIcon, ClockIcon, CheckCircleIcon, AlertTriangleIcon, GridIcon, CheckIcon, DoubleCheckIcon, CameraIcon } from './common/icons';
+import { UserCircleIcon, PencilIcon, TrashIcon, UserCircleIcon as UserIcon, PaperClipIcon, EyeIcon, UploadIcon, XIcon, DownloadIcon, ShoppingCartIcon, HeartIcon, ArrowRightIcon, TractorIcon, ShieldCheckIcon, BanknotesIcon, MessageSquareIcon, PhoneIcon, MailIcon, ClockIcon, CheckCircleIcon, AlertTriangleIcon, GridIcon, CheckIcon, DoubleCheckIcon, CameraIcon, StarIcon } from './common/icons';
 import type { User, UserFile, MarketplaceItem, EquipmentItem, View, Transaction, Inquiry, Message, EquipmentType } from '../types';
 import { supabase } from '../services/supabase';
 import { getUserFiles, deleteUserFile, uploadUserFile, getFreshDownloadUrl } from '../services/storageService';
@@ -40,6 +40,9 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   const [myEquipment, setMyEquipment] = useState<EquipmentItem[]>([]);
   const [likedItems, setLikedItems] = useState<(MarketplaceItem & { image_url?: string })[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  
+  // Rating State
+  const [myStats, setMyStats] = useState<{ avg: number, count: number } | null>(null);
   
   // Item Details Modal State (For Liked Items & My Store Products)
   const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
@@ -108,6 +111,7 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
       fetchLikedItems();
       fetchTransactions();
       fetchInbox();
+      fetchMyRating();
     }
   }, [user]);
 
@@ -154,6 +158,24 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
     return () => { supabase.removeChannel(channel); };
   }, [isChatOpen, activeChatContext, user?.uid]);
 
+  // Realtime subscription for INBOX list
+  useEffect(() => {
+      if (!user?.uid || activeTab !== 'INBOX') return;
+
+      const channel = supabase
+        .channel('profile_inbox_list')
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'chats', filter: `receiver_id=eq.${user.uid}` },
+            () => {
+                fetchInbox(); // Re-fetch inbox list on new message
+            }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+  }, [user?.uid, activeTab]);
+
   // Slideshow Logic
   useEffect(() => {
       if (selectedItem) {
@@ -170,6 +192,17 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
   }, [selectedItem]);
 
   // --- Data Fetching ---
+
+  const fetchMyRating = async () => {
+      if (!user?.uid) return;
+      try {
+          const { data, error } = await supabase.from('user_reviews').select('rating').eq('target_user_id', user.uid);
+          if (!error && data && data.length > 0) {
+              const total = data.reduce((acc, curr) => acc + curr.rating, 0);
+              setMyStats({ avg: total / data.length, count: data.length });
+          }
+      } catch (e) { console.error("Rating fetch failed", e); }
+  };
 
   const fetchUserFiles = async () => {
     if (!user || !user.uid) return;
@@ -501,6 +534,16 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onLogout, setActiveVie
                        <>
                         <h3 className="text-xl font-bold text-gray-900">{user.name}</h3>
                         <p className="text-sm text-gray-500 mb-2">{user.email}</p>
+                        
+                        {/* Rating Display */}
+                        {myStats && (
+                            <div className="flex items-center justify-center gap-1 bg-yellow-50 px-3 py-1 rounded-full mb-3 border border-yellow-200">
+                                <StarIcon className="w-4 h-4 text-yellow-500" />
+                                <span className="font-bold text-yellow-800">{myStats.avg.toFixed(1)}</span>
+                                <span className="text-xs text-yellow-600">({myStats.count} reviews)</span>
+                            </div>
+                        )}
+
                         {user.merchant_id && (
                             <div className="mb-2 bg-gray-100 px-3 py-1 rounded border border-gray-200">
                                 <span className="text-[10px] uppercase text-gray-500 font-bold block">Merchant ID</span>

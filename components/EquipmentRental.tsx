@@ -70,10 +70,11 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
   // Inquiry Modal State
   const [isInquiryVisible, setIsInquiryVisible] = useState(false);
   const [inquiryItem, setInquiryItem] = useState<EquipmentItem | null>(null);
+  const [isSubmittingInquiry, setIsSubmittingInquiry] = useState(false);
   const [inquiryForm, setInquiryForm] = useState<Partial<Inquiry>>({
-      name: '',
-      email: '',
-      phone: '',
+      name: user?.name || '',
+      email: user?.email || '',
+      phone: user?.phone || '',
       message: ''
   });
 
@@ -250,10 +251,91 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
     return matchesSearch && matchesType;
   });
 
-  const fetchOwnerRating = async (ownerId: string) => { /* ... (Unchanged) */ };
-  const handleSubmitRating = async (e: React.FormEvent) => { /* ... (Unchanged) */ };
-  const handleOpenInquiry = (item: EquipmentItem) => { /* ... (Unchanged) */ };
-  const submitInquiry = async (e: React.FormEvent) => { /* ... (Unchanged) */ };
+  const fetchOwnerRating = async (ownerId: string) => {
+      try {
+          const { data, error } = await supabase.from('user_reviews').select('rating').eq('target_user_id', ownerId);
+          if (error) throw error;
+          if (data && data.length > 0) {
+              const total = data.reduce((acc, curr) => acc + curr.rating, 0);
+              setOwnerStats({ avg: total / data.length, count: data.length });
+          } else {
+              setOwnerStats(null);
+          }
+      } catch (e) {
+          console.error("Error fetching rating", e);
+      }
+  };
+
+  const submitRating = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!selectedItem || !user) return;
+      
+      setIsSubmittingRating(true);
+      try {
+          const { error } = await supabase.from('user_reviews').insert({
+              reviewer_id: user.uid,
+              target_user_id: selectedItem.user_id,
+              rating: ratingValue,
+              comment: ratingComment,
+              created_at: new Date().toISOString()
+          });
+
+          if (error) throw error;
+
+          addNotification({ type: 'rental', title: 'Review Submitted', message: 'Thank you for rating the owner!', view: 'RENTAL' });
+          setShowRatingModal(false);
+          setRatingValue(0);
+          setRatingComment('');
+          fetchOwnerRating(selectedItem.user_id);
+      } catch (err: any) {
+          console.error("Rating error:", err);
+          addNotification({ type: 'rental', title: 'Error', message: 'Could not submit review.', view: 'RENTAL' });
+      } finally {
+          setIsSubmittingRating(false);
+      }
+  };
+
+  const handleOpenInquiry = (item: EquipmentItem) => {
+      setInquiryItem(item);
+      setInquiryForm({
+          name: user?.name || '',
+          email: user?.email || '',
+          phone: user?.phone || '',
+          message: `I am interested in renting your ${item.name}. Is it available?`
+      });
+      setIsInquiryVisible(true);
+  };
+
+  const submitInquiry = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!inquiryItem) return;
+      setIsSubmittingInquiry(true);
+      try {
+          const payload = {
+              user_id: user?.uid,
+              recipient_id: inquiryItem.user_id,
+              item_id: inquiryItem.id,
+              item_type: 'equipment',
+              name: inquiryForm.name,
+              email: inquiryForm.email,
+              phone: inquiryForm.phone,
+              message: inquiryForm.message,
+              subject: `Rental Inquiry: ${inquiryItem.name}`,
+              status: 'pending',
+              created_at: new Date().toISOString()
+          };
+          const { error } = await supabase.from('inquiries').insert([payload]);
+          if (error) throw error;
+          
+          addNotification({ type: 'rental', title: 'Sent', message: 'Inquiry sent successfully.', view: 'RENTAL' });
+          setIsInquiryVisible(false);
+      } catch (e: any) {
+          console.error(e);
+          addNotification({ type: 'rental', title: 'Error', message: 'Failed to send inquiry.', view: 'RENTAL' });
+      } finally {
+          setIsSubmittingInquiry(false);
+      }
+  };
 
   const handleOpenChat = (item: EquipmentItem) => {
       if (!user || !user.uid) {
@@ -329,21 +411,152 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
       }
   };
 
-  // ... (Other handlers unchanged)
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
-  const removeImage = (index: number) => { /* ... */ };
-  const handleUseMyLocation = (e: React.MouseEvent) => { /* ... */ };
-  const handleAddItem = async (e: React.FormEvent) => { /* ... */ };
-  const handleUpdateItem = async (e: React.FormEvent) => { /* ... */ };
-  const handleDeleteItem = async () => { /* ... */ };
-  const openEditModal = (item: EquipmentItem) => { /* ... */ };
-  const resetForm = () => { /* ... */ };
-  const canManage = (item: EquipmentItem) => { /* ... */ return false; };
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          setItemImages([file]);
+          setImagePreviews([URL.createObjectURL(file)]);
+      }
+  };
+
+  const removeImage = (index: number) => {
+      setItemImages([]);
+      setImagePreviews([]);
+  };
+
+  const handleUseMyLocation = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (location) {
+          setCurrentItem(prev => ({
+              ...prev,
+              location: `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
+              location_lat: location.latitude,
+              location_lng: location.longitude
+          }));
+      } else {
+          addNotification({ type: 'rental', title: 'Location Error', message: 'GPS location not available.', view: 'RENTAL' });
+      }
+  };
+
+  const handleAddItem = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) {
+          onRequireLogin();
+          return;
+      }
+      if (!currentItem.name || !currentItem.price_per_day) {
+          addNotification({ type: 'rental', title: 'Validation', message: 'Please fill in required fields.', view: 'RENTAL' });
+          return;
+      }
+
+      setIsSubmitting(true);
+      try {
+          let imageUrl = '';
+          if (itemImages.length > 0) {
+              const res = await uploadUserFile(user.uid!, itemImages[0], 'rental', '', `Rental: ${currentItem.name}`);
+              imageUrl = res.file_url;
+          }
+
+          const newItemPayload = {
+              user_id: user.uid,
+              owner: user.name,
+              name: currentItem.name,
+              type: currentItem.type,
+              description: currentItem.description,
+              location: currentItem.location || 'Ghana',
+              location_lat: currentItem.location_lat,
+              location_lng: currentItem.location_lng,
+              price_per_day: currentItem.price_per_day,
+              image_url: imageUrl,
+              image_urls: [imageUrl],
+              available: true,
+              created_at: new Date().toISOString()
+          };
+
+          const { error } = await supabase.from('equipment').insert([newItemPayload]);
+          if (error) throw error;
+
+          addNotification({ type: 'rental', title: 'Success', message: 'Equipment listed successfully!', view: 'RENTAL' });
+          setIsFormVisible(false);
+          resetForm();
+      } catch (err: any) {
+          console.error(err);
+          addNotification({ type: 'rental', title: 'Error', message: err.message || 'Failed to list equipment.', view: 'RENTAL' });
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
+  const handleUpdateItem = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!currentItem.name || !currentItem.price_per_day || !selectedItem) return;
+      setIsSubmitting(true);
+      try {
+          const updates = {
+              name: currentItem.name,
+              type: currentItem.type,
+              price_per_day: currentItem.price_per_day,
+              location: currentItem.location,
+              description: currentItem.description
+          };
+          const { error } = await supabase.from('equipment').update(updates).eq('id', selectedItem.id);
+          if (error) throw error;
+          addNotification({ type: 'rental', title: 'Updated', message: 'Listing updated.', view: 'RENTAL' });
+          setIsFormVisible(false);
+          resetForm();
+      } catch (e) {
+          console.error(e);
+          addNotification({ type: 'rental', title: 'Error', message: 'Update failed.', view: 'RENTAL' });
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
+  const handleDeleteItem = async () => {
+      if (!itemToDelete) return;
+      try {
+          await supabase.from('equipment').delete().eq('id', itemToDelete.id);
+          addNotification({ type: 'rental', title: 'Deleted', message: 'Item removed.', view: 'RENTAL' });
+          setIsDeleteModalVisible(false);
+          setItemToDelete(null);
+          // Items will auto-update via subscription or filtered out manually if needed
+      } catch (e) { console.error(e); }
+  };
+
+  const openEditModal = (item: EquipmentItem) => {
+      setSelectedItem(item);
+      setCurrentItem({
+          name: item.name,
+          type: item.type,
+          location: item.location,
+          price_per_day: item.price_per_day,
+          description: item.description || ''
+      });
+      setIsEditMode(true);
+      setIsFormVisible(true);
+  };
+  
+  const resetForm = () => {
+      setCurrentItem({
+          name: '',
+          type: EquipmentType.Tractor,
+          location: '',
+          price_per_day: 0,
+          description: '',
+          owner: user?.name || ''
+      });
+      setItemImages([]);
+      setImagePreviews([]);
+      setIsEditMode(false);
+      setSelectedItem(null);
+  };
+
+  const canManage = (item: EquipmentItem) => user?.uid === item.user_id;
   const goToMyEquipment = () => { setActiveView('PROFILE'); };
 
   return (
     <div className="space-y-6">
-        {/* ... Header and Grid ... (Unchanged) */}
+        {/* Header and Grid */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
                 <div className="p-3 bg-green-100 rounded-full text-green-800">
@@ -360,13 +573,17 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                         <TractorIcon className="w-5 h-5 mr-2" /> My Equipment
                     </Button>
                 )}
-                <Button onClick={() => { resetForm(); setIsFormVisible(true); }}>
+                <Button onClick={() => { 
+                    if(!user) { onRequireLogin(); return; }
+                    resetForm(); 
+                    setIsFormVisible(true); 
+                }}>
                     <PlusIcon className="w-5 h-5 mr-2" /> List Equipment
                 </Button>
             </div>
         </div>
 
-        {/* ... Filter Logic ... */}
+        {/* Filter Logic */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4">
             <div className="relative flex-grow">
                 <input 
@@ -392,7 +609,7 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
 
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* ... Item Cards ... */}
+            {/* Item Cards */}
             {loading ? <div className="col-span-full text-center"><Spinner className="w-8 h-8"/></div> : filteredItems.map(item => (
                 <Card key={item.id} className="flex flex-col h-full overflow-hidden hover:shadow-lg transition-shadow">
                     <div 
@@ -404,8 +621,23 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                             alt={item.name} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                         />
+                        <span className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                            {item.type}
+                        </span>
                     </div>
-                    <div className="mt-auto pt-2 grid grid-cols-2 gap-2">
+                    
+                    {/* Details in Card */}
+                    <div className="mb-4">
+                        <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1 truncate">{item.name}</h3>
+                        <div className="flex justify-between items-center">
+                            <span className="text-indigo-700 font-bold">GHS {item.price_per_day}<span className="text-xs text-gray-500 font-normal">/day</span></span>
+                            <div className="text-xs text-gray-500 flex items-center gap-1 truncate max-w-[50%]">
+                                <GridIcon className="w-3 h-3"/> {item.location}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-auto pt-2 grid grid-cols-2 gap-2 border-t border-gray-100">
                         <Button onClick={() => setSelectedItem(item)} className="text-xs py-2 bg-gray-100 !text-gray-900 hover:bg-gray-200">
                             Details
                         </Button>
@@ -416,6 +648,112 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                 </Card>
             ))}
         </div>
+
+        {/* Add/Edit Modal */}
+        {isFormVisible && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in">
+                <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-800">{isEditMode ? 'Edit Listing' : 'List Equipment'}</h3>
+                        <button onClick={() => setIsFormVisible(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
+                    </div>
+                    
+                    <form onSubmit={isEditMode ? handleUpdateItem : handleAddItem} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Equipment Name</label>
+                            <input 
+                                required
+                                value={currentItem.name} 
+                                onChange={e => setCurrentItem({...currentItem, name: e.target.value})} 
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                placeholder="e.g. John Deere 5050D"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                                <select 
+                                    value={currentItem.type} 
+                                    onChange={e => setCurrentItem({...currentItem, type: e.target.value as EquipmentType})} 
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                >
+                                    {Object.values(EquipmentType).map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Daily Rate (GHS)</label>
+                                <input 
+                                    type="number" 
+                                    required
+                                    value={currentItem.price_per_day} 
+                                    onChange={e => setCurrentItem({...currentItem, price_per_day: parseFloat(e.target.value)})} 
+                                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    value={currentItem.location} 
+                                    onChange={e => setCurrentItem({...currentItem, location: e.target.value})} 
+                                    className="flex-grow p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                    placeholder="Town or Region"
+                                />
+                                <button type="button" onClick={handleUseMyLocation} className="px-3 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-gray-600" title="Use GPS">
+                                    <GridIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea 
+                                value={currentItem.description} 
+                                onChange={e => setCurrentItem({...currentItem, description: e.target.value})} 
+                                className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
+                                rows={3}
+                                placeholder="Condition, included attachments, operator details..."
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Photo</label>
+                            <div className="flex items-center gap-4">
+                                <button 
+                                    type="button" 
+                                    onClick={() => fileInputRef.current?.click()} 
+                                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-700 text-sm"
+                                >
+                                    <UploadIcon className="w-4 h-4" /> Upload
+                                </button>
+                                <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
+                                
+                                {imagePreviews.length > 0 && (
+                                    <div className="relative">
+                                        <img src={imagePreviews[0]} alt="Preview" className="h-12 w-12 object-cover rounded border" />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removeImage(0)}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-sm"
+                                        >
+                                            <XIcon className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <Button type="submit" isLoading={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                            {isEditMode ? 'Update Listing' : 'List Equipment'}
+                        </Button>
+                    </form>
+                </Card>
+            </div>
+        )}
 
         {/* Equipment Details Modal */}
         {selectedItem && (
@@ -428,7 +766,14 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                                 <GridIcon className="w-3 h-3" /> {selectedItem.location}
                             </p>
                         </div>
-                        <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-1"><XIcon className="w-6 h-6" /></button>
+                        <div className="flex gap-2">
+                            {canManage(selectedItem) && (
+                                <button onClick={() => { setSelectedItem(null); openEditModal(selectedItem); }} className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-full">
+                                    <PencilIcon className="w-5 h-5"/>
+                                </button>
+                            )}
+                            <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-gray-800 bg-gray-100 rounded-full p-2"><XIcon className="w-5 h-5" /></button>
+                        </div>
                    </div>
 
                    {/* Image Slideshow */}
@@ -466,28 +811,100 @@ const EquipmentRental: React.FC<EquipmentRentalProps> = ({ user, setActiveView, 
                             <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{selectedItem.description || "No description provided."}</p>
                         </div>
 
-                        {ownerStats && (
+                        {ownerStats ? (
                             <div className="flex items-center gap-1 bg-yellow-50 p-2 rounded text-yellow-800 text-sm">
                                 <StarIcon className="w-4 h-4 text-yellow-500" />
                                 <span className="font-bold">{ownerStats.avg.toFixed(1)}</span>
                                 <span className="text-yellow-600">({ownerStats.count} reviews)</span>
                             </div>
+                        ) : (
+                            <div className="flex items-center gap-1 bg-gray-50 p-2 rounded text-gray-500 text-sm">
+                                <StarIcon className="w-4 h-4 text-gray-300" />
+                                <span>New Owner</span>
+                            </div>
                         )}
                    </div>
 
                    {!canManage(selectedItem) && (
-                       <div className="grid grid-cols-2 gap-3">
-                           <Button onClick={() => { setSelectedItem(null); handleOpenInquiry(selectedItem); }} className="bg-indigo-600 hover:bg-indigo-700">
-                               <MailIcon className="w-4 h-4 mr-2" /> Send Inquiry
-                           </Button>
-                           <Button onClick={() => { setSelectedItem(null); handleOpenChat(selectedItem); }} className="bg-green-600 text-white hover:bg-green-700 border-none shadow-md">
-                               <MessageSquareIcon className="w-4 h-4 mr-2" /> Chat Now
-                           </Button>
+                       <div className="space-y-2">
+                           <div className="grid grid-cols-2 gap-3">
+                               <Button onClick={() => { setSelectedItem(null); handleOpenInquiry(selectedItem); }} className="bg-indigo-600 hover:bg-indigo-700">
+                                   <MailIcon className="w-4 h-4 mr-2" /> Send Inquiry
+                               </Button>
+                               <Button onClick={() => { setSelectedItem(null); handleOpenChat(selectedItem); }} className="bg-green-600 text-white hover:bg-green-700 border-none shadow-md">
+                                   <MessageSquareIcon className="w-4 h-4 mr-2" /> Chat Now
+                               </Button>
+                           </div>
+                           <button 
+                                onClick={() => {
+                                    if(!user) { onRequireLogin(); return; }
+                                    setRatingValue(0);
+                                    setRatingComment('');
+                                    setShowRatingModal(true);
+                                }}
+                                className="w-full py-2 text-sm text-yellow-600 hover:bg-yellow-50 rounded border border-yellow-200 font-medium"
+                           >
+                               Rate Owner
+                           </button>
                        </div>
                    )}
                </Card>
            </div>
        )}
+
+        {/* Rating Modal */}
+        {showRatingModal && selectedItem && (
+           <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 animate-fade-in">
+               <Card className="w-full max-w-sm">
+                   <div className="flex justify-between items-center mb-4">
+                       <h3 className="text-lg font-bold text-gray-800">Rate {selectedItem.owner}</h3>
+                       <button onClick={() => setShowRatingModal(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
+                   </div>
+                   <form onSubmit={submitRating} className="space-y-4">
+                       <div className="flex justify-center gap-2 mb-4">
+                           {[1, 2, 3, 4, 5].map((star) => (
+                               <button
+                                   key={star}
+                                   type="button"
+                                   onClick={() => setRatingValue(star)}
+                                   className="focus:outline-none transform hover:scale-110 transition-transform"
+                               >
+                                   <StarIcon className={`w-8 h-8 ${star <= ratingValue ? 'text-yellow-500' : 'text-gray-300'}`} />
+                               </button>
+                           ))}
+                       </div>
+                       <textarea 
+                           value={ratingComment}
+                           onChange={(e) => setRatingComment(e.target.value)}
+                           className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-yellow-500 outline-none"
+                           placeholder="Describe your experience (optional)..."
+                           rows={3}
+                       />
+                       <Button type="submit" isLoading={isSubmittingRating} disabled={ratingValue === 0} className="w-full bg-yellow-600 hover:bg-yellow-700">
+                           Submit Review
+                       </Button>
+                   </form>
+               </Card>
+           </div>
+       )}
+
+        {/* Inquiry Modal */}
+        {isInquiryVisible && inquiryItem && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in">
+                <Card className="w-full max-w-md">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-800">Inquire about {inquiryItem.name}</h3>
+                        <button onClick={() => setIsInquiryVisible(false)} className="text-gray-500 hover:text-gray-800"><XIcon className="w-6 h-6" /></button>
+                    </div>
+                    <form onSubmit={submitInquiry} className="space-y-4">
+                        <input value={inquiryForm.name} onChange={e => setInquiryForm({...inquiryForm, name: e.target.value})} placeholder="Your Name" className="w-full p-2 border rounded bg-white text-gray-900" required />
+                        <input value={inquiryForm.phone} onChange={e => setInquiryForm({...inquiryForm, phone: e.target.value})} placeholder="Your Phone" className="w-full p-2 border rounded bg-white text-gray-900" required />
+                        <textarea value={inquiryForm.message} onChange={e => setInquiryForm({...inquiryForm, message: e.target.value})} placeholder="Message..." className="w-full p-2 border rounded bg-white text-gray-900" rows={4} required />
+                        <Button type="submit" isLoading={isSubmittingInquiry} className="w-full">Send Inquiry</Button>
+                    </form>
+                </Card>
+            </div>
+        )}
 
        {/* Chat Modal */}
        {isChatVisible && chatContext && (
