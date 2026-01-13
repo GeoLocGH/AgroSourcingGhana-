@@ -9,7 +9,7 @@ import Button from './common/Button';
 import { Spinner, TimelineIcon, SearchIcon, AlertTriangleIcon, SproutIcon, GridIcon, TractorIcon } from './common/icons';
 
 const LIVESTOCK_GROUPS = [
-  'Cow', 'Goat', 'Sheep', 'Chicken', 'Guinea Fowl', 'Turkey', 'Pig', 'Snail', 'Rabbit', 'Tilapia/Catfish'
+  'Cow', 'Goat', 'Sheep', 'Chicken', 'Guinea Fowl', 'Turkey', 'Pig', 'Snail', 'Rabbit', 'Tilapia/Catfish', 'Eggs'
 ];
 
 const CropAdvisory: React.FC = () => {

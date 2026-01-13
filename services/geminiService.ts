@@ -109,8 +109,10 @@ export const getLocalWeather = async (location: GeoLocation | string): Promise<S
     });
 };
 
-export const getMarketPrices = async (crop: string): Promise<ServiceResponse<PriceData[]>> => {
-    const prompt = `Get current market prices for ${crop} in major markets in Ghana. Return JSON.`;
+export const getMarketPrices = async (commodity: string, category: 'Crop' | 'Livestock' = 'Crop'): Promise<ServiceResponse<PriceData[]>> => {
+    const prompt = category === 'Livestock'
+        ? `Get current market prices for live ${commodity} in major livestock markets in Ghana. Return JSON. Columns: Market, Price (GHS), Unit (e.g. per animal, size), Date, Trend.`
+        : `Get current market prices for ${commodity} (crop produce) in major markets in Ghana. Return JSON. Columns: Market, Price (GHS), Unit (e.g. bag, crate), Date, Trend.`;
 
     return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({

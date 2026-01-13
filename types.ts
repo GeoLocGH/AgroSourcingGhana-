@@ -95,7 +95,8 @@ export enum Crop {
   Pig = 'Pig',
   Snail = 'Snail',
   Rabbit = 'Rabbit',
-  Fish = 'Tilapia/Catfish'
+  Fish = 'Tilapia/Catfish',
+  Eggs = 'Eggs'
 }
 
 export interface AdvisoryStage {

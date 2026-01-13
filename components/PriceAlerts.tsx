@@ -4,7 +4,12 @@ import { Crop, PriceData, GroundingSource } from '../types';
 import Card from './common/Card';
 import { useNotifications } from '../contexts/NotificationContext';
 import { getMarketPrices } from '../services/geminiService';
-import { Spinner, TagIcon, ArrowUpIcon, ArrowDownIcon, SearchIcon } from './common/icons';
+import { Spinner, TagIcon, ArrowUpIcon, ArrowDownIcon, SearchIcon, TractorIcon } from './common/icons';
+
+// Livestock definition consistent with Advisory
+const LIVESTOCK_GROUPS = [
+  'Cow', 'Goat', 'Sheep', 'Chicken', 'Guinea Fowl', 'Turkey', 'Pig', 'Snail', 'Rabbit', 'Tilapia/Catfish', 'Eggs'
+];
 
 // Baseline reference for alerting logic only (approximate averages in GHS)
 const priceBaselines: Record<Crop, number> = {
@@ -37,6 +42,7 @@ const priceBaselines: Record<Crop, number> = {
     [Crop.Snail]: 20, // per pack or jumbo size
     [Crop.Rabbit]: 120,
     [Crop.Fish]: 45, // per kg
+    [Crop.Eggs]: 50, // per crate
 }
 
 const PriceAlerts: React.FC = () => {
@@ -47,13 +53,15 @@ const PriceAlerts: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const { addNotification } = useNotifications();
 
+  const isLivestock = LIVESTOCK_GROUPS.includes(selectedCommodity);
+
   useEffect(() => {
     const fetchPrices = async () => {
       setLoading(true);
       setPriceData([]);
       setSources([]);
       try {
-        const response = await getMarketPrices(selectedCommodity);
+        const response = await getMarketPrices(selectedCommodity, isLivestock ? 'Livestock' : 'Crop');
         const data = response.data;
         setPriceData(data);
         setSources(response.sources);
@@ -91,16 +99,18 @@ const PriceAlerts: React.FC = () => {
   return (
     <Card>
       <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 bg-green-100 rounded-full text-green-700">
-             <TagIcon className="w-6 h-6" />
+          <div className={`p-2 rounded-full ${isLivestock ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+             {isLivestock ? <TractorIcon className="w-6 h-6" /> : <TagIcon className="w-6 h-6" />}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-green-800">Nationwide Market Prices</h2>
+            <h2 className={`text-xl font-bold ${isLivestock ? 'text-orange-800' : 'text-green-800'}`}>
+                {isLivestock ? 'Nationwide Livestock Prices' : 'Nationwide Crop Prices'}
+            </h2>
             <p className="text-xs text-gray-500">Powered by AI Search Grounding • Real-time Data</p>
           </div>
       </div>
       
-      <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+      <div className={`mb-6 p-4 rounded-lg border ${isLivestock ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
         <label htmlFor="crop-select" className="block text-sm font-medium text-gray-700 mb-1">
           Select Commodity to Scan:
         </label>
@@ -108,13 +118,18 @@ const PriceAlerts: React.FC = () => {
           id="crop-select"
           value={selectedCommodity}
           onChange={(e) => setSelectedCommodity(e.target.value as Crop)}
-          className="mt-1 block w-full pl-3 pr-10 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          className="mt-1 block w-full pl-3 pr-10 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
         >
-          {Object.values(Crop).map((crop) => (
-            <option key={crop} value={crop}>
-              {crop}
-            </option>
-          ))}
+            <optgroup label="Crops">
+                {Object.values(Crop).filter(c => !LIVESTOCK_GROUPS.includes(c)).map((crop) => (
+                    <option key={crop} value={crop}>{crop}</option>
+                ))}
+            </optgroup>
+            <optgroup label="Livestock">
+                {Object.values(Crop).filter(c => LIVESTOCK_GROUPS.includes(c)).map((crop) => (
+                    <option key={crop} value={crop}>{crop}</option>
+                ))}
+            </optgroup>
         </select>
       </div>
 
@@ -128,8 +143,10 @@ const PriceAlerts: React.FC = () => {
 
         {loading ? (
             <div className="flex flex-col items-center justify-center py-12">
-                <Spinner className="w-8 h-8 text-green-600 mb-2" />
-                <p className="text-sm text-green-700 font-medium animate-pulse">Scanning markets across Ghana...</p>
+                <Spinner className={`w-8 h-8 ${isLivestock ? 'text-orange-600' : 'text-green-600'} mb-2`} />
+                <p className={`text-sm font-medium animate-pulse ${isLivestock ? 'text-orange-700' : 'text-green-700'}`}>
+                    Scanning markets across Ghana...
+                </p>
             </div>
         ) : priceData.length === 0 ? (
             <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
