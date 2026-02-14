@@ -2,33 +2,28 @@
 import React, { useEffect, useState } from 'react';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { getLocalWeather } from '../services/geminiService';
-import type { WeatherForecast, GroundingSource } from '../types';
+import type { WeatherReport, GroundingSource, WeatherForecast } from '../types';
 import Card from './common/Card';
-import { SunIcon, RainIcon, CloudyIcon, Spinner, WindIcon, DropletIcon, EyeIcon, GaugeIcon, SproutIcon, SearchIcon, GridIcon } from './common/icons';
+import { SunIcon, RainIcon, CloudyIcon, Spinner, WindIcon, DropletIcon, EyeIcon, GaugeIcon, SproutIcon, SearchIcon, GridIcon, ClockIcon } from './common/icons';
 import { useNotifications } from '../contexts/NotificationContext';
 import Button from './common/Button';
 
-const WeatherIcon: React.FC<{ condition: WeatherForecast['condition']; className?: string }> = ({ condition, className }) => {
-  switch (condition) {
-    case 'Sunny':
-      return <SunIcon className={className} />;
-    case 'Rainy':
-       return <RainIcon className={className} />;
-    case 'Stormy':
-       return <RainIcon className={className} />; 
-    case 'Cloudy':
-    default:
-      return <CloudyIcon className={className} />;
-  }
+// Helper to determine icon based on string condition
+const WeatherIcon: React.FC<{ condition: string; className?: string }> = ({ condition, className }) => {
+  const c = (condition || '').toLowerCase(); // Safe check for undefined
+  if (c.includes('rain') || c.includes('drizzle')) return <RainIcon className={className} />;
+  if (c.includes('storm') || c.includes('thunder')) return <RainIcon className={className} />; // Reusing Rain for now, ideally Thunder
+  if (c.includes('sun') || c.includes('clear')) return <SunIcon className={className} />;
+  return <CloudyIcon className={className} />;
 };
 
 const Weather: React.FC = () => {
   const { location, loading: geoLoading, error: geoError, retry: retryGeo } = useGeolocation();
   const { addNotification } = useNotifications();
-  const [forecasts, setForecasts] = useState<WeatherForecast[]>([]);
+  
+  const [report, setReport] = useState<WeatherReport | null>(null);
   const [sources, setSources] = useState<GroundingSource[]>([]);
   const [loadingForecast, setLoadingForecast] = useState(false);
-  const [regionName, setRegionName] = useState<string>('');
   
   // Manual Location State
   const [manualLocation, setManualLocation] = useState('');
@@ -40,19 +35,17 @@ const Weather: React.FC = () => {
       try {
           const response = await getLocalWeather(loc);
           const data = response.data;
-          setForecasts(data);
+          setReport(data);
           setSources(response.sources);
           setIsUsingManual(isManual);
 
-          if (data.length > 0 && data[0].region) {
-            setRegionName(data[0].region);
-          }
-          const stormyForecast = data.find(f => f.condition === 'Stormy');
-          if(stormyForecast) {
+          // Check for severe weather in the daily forecast
+          const stormyDay = data.daily?.find(f => (f.condition || '').toLowerCase().includes('storm'));
+          if(stormyDay) {
             addNotification({
                 type: 'weather',
                 title: 'Severe Weather Warning',
-                message: `Storm expected ${stormyForecast.day.toLowerCase()} in ${data[0].region || 'your area'}. Secure equipment.`,
+                message: `Storm expected on ${stormyDay.day}. Secure equipment.`,
                 view: 'WEATHER'
             });
           }
@@ -78,29 +71,33 @@ const Weather: React.FC = () => {
   };
 
   return (
-    <Card>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
-          <h2 className="text-xl font-bold text-green-700">Regional Weather & Agro-Advisory</h2>
-          {regionName && (
+    <Card className="min-h-[500px]">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-2">
+          <div>
+              <h2 className="text-2xl font-bold text-green-800">Regional Weather & Agro-Advisory</h2>
+              <p className="text-sm text-gray-500">Hyper-local hourly and weekly forecasts.</p>
+          </div>
+          {report?.current?.region && (
               <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full border border-green-200">
-                  Sector: {regionName}
+                  Sector: {report.current.region}
               </span>
           )}
       </div>
       
       {/* Loading State */}
       {(geoLoading || loadingForecast) && (
-        <div className="flex items-center justify-center p-6 bg-orange-50 border border-orange-200 rounded-xl shadow-sm my-4">
-            <Spinner className="animate-spin h-6 w-6 text-orange-600" /> 
-            <span className="ml-3 font-bold text-orange-700 text-lg animate-pulse">
-                {geoLoading ? "Acquiring GPS Satellite Signal..." : "Analyzing Atmospheric Data..."}
-            </span>
+        <div className="flex items-center justify-center p-12 bg-gray-50 border border-dashed border-gray-300 rounded-xl shadow-inner my-4">
+            <Spinner className="animate-spin h-8 w-8 text-green-600" /> 
+            <div className="ml-4 text-left">
+                <p className="font-bold text-green-800 text-lg">Analyzing Atmospheric Data...</p>
+                <p className="text-sm text-gray-500">Fetching satellite imagery and forecasts.</p>
+            </div>
         </div>
       )}
       
       {/* Error / Manual Input State */}
-      {(geoError && !loadingForecast && forecasts.length === 0) && (
-          <div className="space-y-4">
+      {(geoError && !loadingForecast && !report) && (
+          <div className="space-y-4 max-w-md mx-auto py-10">
               <div className="text-red-600 bg-red-50 border border-red-200 p-4 rounded-xl flex flex-col gap-2">
                   <div className="flex items-center gap-2 font-bold">
                        <GridIcon className="w-5 h-5" /> 
@@ -108,7 +105,7 @@ const Weather: React.FC = () => {
                   </div>
                   <p className="text-sm text-gray-700">
                       {geoError.includes("denied") 
-                        ? "Please enable location services in your browser settings."
+                        ? "Please enable location services or use manual search."
                         : "Satellite signal is weak. You can retry GPS or enter your town below."}
                   </p>
                   
@@ -142,72 +139,119 @@ const Weather: React.FC = () => {
       )}
       
       {/* Weather Display */}
-      {!geoLoading && !loadingForecast && forecasts.length > 0 && (
-        <div className="animate-fade-in">
-          <div className="text-gray-600 mb-4 text-sm flex items-center justify-between">
+      {!geoLoading && !loadingForecast && report && (
+        <div className="animate-fade-in space-y-6">
+          
+          {/* Location Bar */}
+          <div className="flex justify-between items-center text-sm text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100">
               <span className="flex items-center gap-1">
                 <GridIcon className={`w-4 h-4 ${isUsingManual ? 'text-orange-500' : 'text-green-500'}`} />
-                {isUsingManual ? `Manual Search: "${manualLocation}"` : `GPS Coordinates: ${location?.latitude.toFixed(4)}, ${location?.longitude.toFixed(4)}`}
+                {isUsingManual ? `Manual Search: "${manualLocation}"` : `GPS: ${location?.latitude.toFixed(4)}, ${location?.longitude.toFixed(4)}`}
               </span>
-              {isUsingManual && (
-                  <button onClick={retryGeo} className="text-xs text-blue-600 hover:underline">Try GPS Again</button>
-              )}
+              {isUsingManual && <button onClick={retryGeo} className="text-xs text-blue-600 hover:underline">Try GPS</button>}
           </div>
 
-          {/* Optimized Grid: 1 col mobile, 2 col sm, 3 col lg */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {forecasts.map((forecast) => (
-              <div key={forecast.day} className="bg-slate-800 text-white rounded-xl p-4 shadow-lg flex flex-col gap-3 relative overflow-hidden group hover:scale-[1.01] transition-transform">
-                
-                <div className="flex items-center justify-between">
-                    {/* Left Side: Temp & Icon */}
-                    <div className="flex flex-col items-start gap-1 z-10">
-                        <div className="flex items-center gap-3">
-                            <WeatherIcon condition={forecast.condition} className={`w-12 h-12 ${forecast.condition === 'Stormy' ? 'text-red-400' : 'text-yellow-400'}`} />
-                            <div>
-                                <div className="text-3xl font-bold tracking-tighter">
-                                    {forecast.temp}°C <span className="text-lg text-gray-400 font-normal">/ {(forecast.temp * 9/5 + 32).toFixed(0)}°F</span>
-                                </div>
-                                <div className="text-sm text-gray-300 font-medium">{forecast.condition}</div>
-                            </div>
-                        </div>
-                        <div className="mt-2 text-xs font-bold uppercase tracking-wide text-slate-400">{forecast.day}</div>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column: Current Weather & Hourly */}
+              <div className="lg:col-span-2 space-y-6">
+                  {/* Current Weather Hero Card */}
+                  <div className="bg-gradient-to-br from-green-700 to-green-900 text-white rounded-2xl p-6 shadow-lg relative overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-1/4 -translate-y-1/4">
+                          <SunIcon className="w-64 h-64 text-white" />
+                      </div>
 
-                    {/* Right Side: Details */}
-                    <div className="flex flex-col gap-1.5 text-xs sm:text-sm text-gray-300 z-10 min-w-[100px] border-l border-slate-600 pl-4">
-                        <div className="flex items-center gap-2">
-                            <WindIcon className="w-4 h-4 text-slate-400" />
-                            <span>{forecast.wind} km/h</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <DropletIcon className="w-4 h-4 text-slate-400" />
-                            <span>{forecast.humidity || '--%'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <EyeIcon className="w-4 h-4 text-slate-400" />
-                            <span>{forecast.visibility || '--'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <GaugeIcon className="w-4 h-4 text-slate-400" />
-                            <span>{forecast.pressure || '--'}</span>
-                        </div>
-                    </div>
-                </div>
+                      <div className="relative z-10 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-6">
+                          <div className="text-center sm:text-left">
+                              <h3 className="text-xl font-medium text-green-100 mb-1">Current Weather</h3>
+                              {report.current && (
+                                  <>
+                                    <div className="text-5xl sm:text-7xl font-bold tracking-tighter mb-2">
+                                        {report.current.temp}°C
+                                    </div>
+                                    <p className="text-lg font-medium text-green-50 capitalize flex items-center justify-center sm:justify-start gap-2">
+                                        <WeatherIcon condition={report.current.condition} className="w-6 h-6" />
+                                        {report.current.condition}
+                                    </p>
+                                  </>
+                              )}
+                          </div>
+                          
+                          {report.current && (
+                              <div className="grid grid-cols-2 gap-4 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/10 w-full sm:w-auto">
+                                  <div className="flex items-center gap-3">
+                                      <WindIcon className="w-5 h-5 text-green-200" />
+                                      <div>
+                                          <p className="text-xs text-green-200 uppercase">Wind</p>
+                                          <p className="font-bold">{report.current.wind} km/h</p>
+                                      </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                      <DropletIcon className="w-5 h-5 text-green-200" />
+                                      <div>
+                                          <p className="text-xs text-green-200 uppercase">Humidity</p>
+                                          <p className="font-bold">{report.current.humidity}</p>
+                                      </div>
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+                  </div>
 
-                {/* Agromet Note */}
-                {forecast.agromet_note && (
-                    <div className="mt-2 pt-2 border-t border-slate-600">
-                        <div className="flex items-start gap-2">
-                            <SproutIcon className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-green-100 font-medium italic leading-relaxed">
-                                "{forecast.agromet_note}"
-                            </p>
-                        </div>
-                    </div>
-                )}
+                  {/* Hourly Forecast Scroller */}
+                  {report.hourly && report.hourly.length > 0 && (
+                      <div>
+                          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                              <ClockIcon className="w-5 h-5 text-gray-500" /> Hourly Forecast (24h)
+                          </h3>
+                          <div className="flex overflow-x-auto no-scrollbar gap-3 pb-2">
+                              {report.hourly.map((hour, idx) => (
+                                  <div key={idx} className="flex-shrink-0 w-24 bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center justify-center shadow-sm hover:shadow-md transition-shadow">
+                                      <span className="text-xs text-gray-500 mb-2">{hour.time}</span>
+                                      <WeatherIcon condition={hour.condition} className="w-8 h-8 text-gray-700 mb-2" />
+                                      <span className="font-bold text-gray-900">{hour.temp}°</span>
+                                      <span className="text-[10px] text-gray-400 truncate w-full text-center">{hour.condition}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+                  
+                  {/* Advisory Box (Placed here for better visibility on mobile/tablet) */}
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+                      <div className="flex items-start gap-3">
+                          <div className="p-2 bg-green-100 rounded-full text-green-700"><SproutIcon className="w-6 h-6" /></div>
+                          <div>
+                              <h3 className="font-bold text-green-900 mb-1">Agro-Advisory Note</h3>
+                              <p className="text-sm text-green-800 leading-relaxed italic">
+                                  "{report.advisory}"
+                              </p>
+                          </div>
+                      </div>
+                  </div>
               </div>
-            ))}
+
+              {/* Right Column: 7-Day Forecast */}
+              <div className="lg:col-span-1">
+                  <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                      <GridIcon className="w-5 h-5 text-gray-500" /> 7-Day Forecast
+                  </h3>
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden divide-y divide-gray-100">
+                      {report.daily && report.daily.length > 0 ? report.daily.map((day, idx) => (
+                          <div key={idx} className="p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                              <div className="w-16 font-medium text-gray-700 text-sm">{day.day}</div>
+                              <div className="flex items-center gap-2 flex-grow justify-center">
+                                  <WeatherIcon condition={day.condition} className="w-6 h-6 text-gray-500" />
+                                  <span className="text-xs text-gray-500 hidden sm:inline-block w-16 truncate">{day.condition}</span>
+                              </div>
+                              <div className="flex items-center gap-3 text-sm w-24 justify-end">
+                                  <span className="font-bold text-gray-900">{day.high}°</span>
+                                  <span className="text-gray-400">{day.low}°</span>
+                              </div>
+                          </div>
+                      )) : <p className="p-4 text-gray-500 text-sm">No forecast available.</p>}
+                  </div>
+              </div>
           </div>
 
           {/* Sources Section */}

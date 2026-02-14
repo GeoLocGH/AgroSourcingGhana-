@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { GeoLocation, WeatherForecast, PriceData, AdvisoryStage, ServiceResponse, PaymentExtractionResult } from "../types";
+import type { GeoLocation, WeatherForecast, WeatherReport, PriceData, AdvisoryStage, ServiceResponse, PaymentExtractionResult } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -30,6 +30,18 @@ function extractSources(response: any) {
         title: chunk.web?.title || 'Source',
         uri: chunk.web?.uri || ''
     })).filter((s: any) => s.uri) || [];
+}
+
+/**
+ * Helper to strip Markdown code blocks (```json ... ```) from LLM responses
+ * before attempting to parse as JSON.
+ */
+function cleanJson(text: string | undefined): string {
+    if (!text) return "{}";
+    // Remove markdown code blocks if present (e.g. ```json ... ``` or just ``` ... ```)
+    const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match) return match[1];
+    return text;
 }
 
 export const checkWeatherAlerts = async (location: GeoLocation | string): Promise<string> => {
@@ -68,12 +80,19 @@ export const getFarmingTip = async (location: GeoLocation | string): Promise<str
     });
 };
 
-export const getLocalWeather = async (location: GeoLocation | string): Promise<ServiceResponse<WeatherForecast[]>> => {
+export const getLocalWeather = async (location: GeoLocation | string): Promise<ServiceResponse<WeatherReport>> => {
     const locString = typeof location === 'string' 
         ? location 
         : `${location.latitude}, ${location.longitude}`;
 
-    const prompt = `Get the 3-day weather forecast for ${locString}. Return JSON.`;
+    const prompt = `Get a comprehensive weather report for ${locString}.
+    Provide:
+    1. Current conditions.
+    2. Hourly forecast for the next 24 hours (intervals of 3-4 hours).
+    3. Daily forecast for the next 7 days.
+    4. A brief Agro-Advisory note.
+    
+    Return JSON.`;
     
     return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
@@ -83,27 +102,55 @@ export const getLocalWeather = async (location: GeoLocation | string): Promise<S
                 tools: [{ googleSearch: {} }],
                 responseMimeType: 'application/json',
                 responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            day: { type: Type.STRING },
-                            condition: { type: Type.STRING, enum: ['Sunny', 'Cloudy', 'Rainy', 'Stormy'] },
-                            temp: { type: Type.NUMBER },
-                            wind: { type: Type.NUMBER },
-                            humidity: { type: Type.STRING },
-                            visibility: { type: Type.STRING },
-                            pressure: { type: Type.STRING },
-                            region: { type: Type.STRING },
-                            agromet_note: { type: Type.STRING }
+                    type: Type.OBJECT,
+                    properties: {
+                        current: {
+                            type: Type.OBJECT,
+                            properties: {
+                                temp: { type: Type.NUMBER },
+                                condition: { type: Type.STRING, enum: ['Sunny', 'Cloudy', 'Rainy', 'Stormy'] },
+                                humidity: { type: Type.STRING },
+                                wind: { type: Type.NUMBER },
+                                region: { type: Type.STRING }
+                            },
+                            required: ['temp', 'condition', 'region', 'humidity', 'wind']
                         },
-                        required: ['day', 'condition', 'temp', 'wind', 'humidity', 'visibility', 'pressure', 'region']
-                    }
+                        hourly: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    time: { type: Type.STRING },
+                                    temp: { type: Type.NUMBER },
+                                    condition: { type: Type.STRING, enum: ['Sunny', 'Cloudy', 'Rainy', 'Stormy'] }
+                                },
+                                required: ['time', 'temp', 'condition']
+                            }
+                        },
+                        daily: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    day: { type: Type.STRING },
+                                    high: { type: Type.NUMBER },
+                                    low: { type: Type.NUMBER },
+                                    condition: { type: Type.STRING, enum: ['Sunny', 'Cloudy', 'Rainy', 'Stormy'] },
+                                    rainChance: { type: Type.STRING }
+                                },
+                                required: ['day', 'high', 'low', 'condition']
+                            }
+                        },
+                        advisory: { type: Type.STRING }
+                    },
+                    required: ['current', 'hourly', 'daily', 'advisory']
                 }
             }
         });
         
-        const data = JSON.parse(response.text || "[]");
+        // Critical Fix: Strip potential markdown wrapping before parsing
+        const rawText = cleanJson(response.text);
+        const data = JSON.parse(rawText || "{}") as WeatherReport;
         const sources = extractSources(response);
         return { data, sources };
     });
@@ -145,7 +192,9 @@ export const getMarketPrices = async (commodity: string, category: 'Crop' | 'Liv
             }
         });
 
-        const data = JSON.parse(response.text || "[]");
+        // Critical Fix: Strip potential markdown wrapping before parsing
+        const rawText = cleanJson(response.text);
+        const data = JSON.parse(rawText || "[]");
         const sources = extractSources(response);
         return { data, sources };
     });
@@ -205,7 +254,9 @@ export const getAdvisory = async (subject: string, date: string, location: GeoLo
             }
         });
 
-        const data = JSON.parse(response.text || "[]");
+        // Critical Fix: Strip potential markdown wrapping before parsing
+        const rawText = cleanJson(response.text);
+        const data = JSON.parse(rawText || "[]");
         const sources = extractSources(response);
         return { data, sources };
     });
@@ -233,7 +284,8 @@ export const parsePaymentSMS = async (smsText: string): Promise<PaymentExtractio
             }
         });
 
-        return JSON.parse(response.text || "{}") as PaymentExtractionResult;
+        const rawText = cleanJson(response.text);
+        return JSON.parse(rawText || "{}") as PaymentExtractionResult;
     });
 };
 

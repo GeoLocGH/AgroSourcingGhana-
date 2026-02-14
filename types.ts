@@ -34,6 +34,7 @@ export interface GeoLocation {
   address?: string; // Added optional address
 }
 
+// Deprecated for new calls, kept for legacy if needed, but we are switching to WeatherReport
 export interface WeatherForecast {
   day: string;
   condition: 'Sunny' | 'Cloudy' | 'Rainy' | 'Stormy';
@@ -44,6 +45,33 @@ export interface WeatherForecast {
   pressure: string;
   region: string;
   agromet_note: string;
+}
+
+export interface HourlyForecast {
+  time: string;
+  temp: number;
+  condition: 'Sunny' | 'Cloudy' | 'Rainy' | 'Stormy';
+}
+
+export interface DailyForecast {
+  day: string;
+  condition: 'Sunny' | 'Cloudy' | 'Rainy' | 'Stormy';
+  high: number;
+  low: number;
+  rainChance: string;
+}
+
+export interface WeatherReport {
+  current: {
+    temp: number;
+    condition: 'Sunny' | 'Cloudy' | 'Rainy' | 'Stormy';
+    humidity: string;
+    wind: number;
+    region: string;
+  };
+  hourly: HourlyForecast[];
+  daily: DailyForecast[];
+  advisory: string;
 }
 
 export interface GroundingSource {
