@@ -35,8 +35,8 @@ const NavItem: React.FC<NavItemProps> = ({ view, label, icon, activeView, setAct
   return (
     <button
       onClick={() => setActiveView(view)}
-      className={`flex flex-col items-center justify-center min-w-[70px] sm:min-w-[80px] py-2 text-xs sm:text-sm transition-all duration-300 rounded-lg flex-shrink-0 ${
-        isActive ? 'text-green-800 font-bold bg-green-100 scale-105' : 'text-gray-600 hover:text-green-800 hover:bg-gray-50'
+      className={`flex flex-col items-center justify-center min-w-[70px] sm:min-w-[90px] py-2 sm:py-3 text-xs sm:text-sm transition-all duration-300 rounded-xl flex-shrink-0 min-h-[44px] ${
+        isActive ? 'text-green-800 font-bold bg-green-100 scale-105 shadow-sm' : 'text-gray-600 hover:text-green-800 hover:bg-gray-50'
       }`}
       aria-label={`Go to ${label}`}
       aria-current={isActive ? 'page' : undefined}
@@ -320,31 +320,31 @@ const App: React.FC = () => {
     <NotificationProvider>
       <GlobalMessageListener user={user} setActiveView={setActiveView} />
       <div className="min-h-screen min-h-[100dvh] bg-gray-900 font-sans text-gray-200 flex flex-col">
-         {/* Main Container */}
-        <main className="flex-grow p-4 md:p-6 relative">
-             {/* Wrapper for Header and Nav - Scrolls with page (removed sticky) */}
-             <div className="relative z-40 bg-gray-900 -mx-4 px-4 md:-mx-6 md:px-6 pt-1 pb-2 transition-all">
-                 {/* Floating Header Banner */}
-                 <div className="max-w-5xl mx-auto bg-green-800 text-white shadow-2xl rounded-t-xl px-3 py-4 sm:p-6 flex justify-between items-center relative z-30 min-h-[88px]">
+         {/* Main Container - Optimized for Mobile & Desktop */}
+        <main className="flex-grow p-3 sm:p-6 lg:p-8 relative w-full">
+             {/* Wrapper for Header and Nav - Scrolls with page */}
+             <div className="relative z-40 bg-gray-900 -mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-1 pb-2 transition-all">
+                 {/* Floating Header Banner - Max width increased for desktop */}
+                 <div className="max-w-7xl mx-auto bg-green-800 text-white shadow-2xl rounded-t-2xl px-4 py-5 sm:p-6 lg:p-8 flex flex-col sm:flex-row justify-between items-center relative z-30 min-h-[88px] gap-4">
                      {/* Title Section */}
-                     <div className="z-10 relative flex flex-col">
+                     <div className="z-10 relative flex flex-col items-center sm:items-start text-center sm:text-left">
                       <button 
                         onClick={() => setActiveView('DASHBOARD')} 
-                        className="hover:opacity-90 transition-opacity text-left group"
+                        className="hover:opacity-90 transition-opacity group"
                       >
-                          <h1 className="text-lg sm:text-2xl font-bold tracking-tight group-hover:underline decoration-2 underline-offset-2">AgroSourcingGhana℠</h1>
+                          <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight group-hover:underline decoration-2 underline-offset-4">AgroSourcingGhana℠</h1>
                       </button>
-                      <p className="text-xs sm:text-sm text-green-100 cursor-default">Localized, Actionable Insights for Farmers</p>
+                      <p className="text-xs sm:text-sm text-green-100 cursor-default mt-1 font-medium">Localized, Actionable Insights for Farmers</p>
                       <button 
                         onClick={() => setActiveView('MARKETPLACE')} 
-                        className="text-xs sm:text-sm text-yellow-300 font-bold mt-0.5 tracking-wide hover:underline hover:text-yellow-200 text-left transition-colors"
+                        className="text-xs sm:text-sm text-yellow-300 font-bold mt-1 tracking-wide hover:underline hover:text-yellow-200 transition-colors"
                       >
                         Buy and Sell your Agricultural Products!
                       </button>
                     </div>
 
-                    {/* Central Logo Placeholder */}
-                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center">
+                    {/* Central Logo Placeholder - Adjusted positioning */}
+                    <div className="relative sm:absolute sm:left-1/2 sm:top-1/2 sm:transform sm:-translate-x-1/2 sm:-translate-y-1/2 z-0 flex flex-col items-center my-2 sm:my-0">
                         <input 
                             type="file" 
                             ref={logoInputRef} 
@@ -353,7 +353,7 @@ const App: React.FC = () => {
                             className="hidden" 
                         />
                         <div 
-                            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-2 border-green-400/30 bg-green-900 overflow-hidden shadow-xl transition-all ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-400 hover:scale-105 group' : ''}`}
+                            className={`w-16 h-16 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full flex items-center justify-center border-4 border-green-400/30 bg-green-900 overflow-hidden shadow-xl transition-all ${user?.type === 'admin' ? 'cursor-pointer hover:border-green-400 hover:scale-105 group' : ''}`}
                             onClick={() => user?.type === 'admin' && !isUploadingLogo && !pendingFile && logoInputRef.current?.click()}
                             title={user?.type === 'admin' ? "Admin: Click to upload PNG logo" : "AgroSourcingGhana Logo"}
                         >
@@ -379,17 +379,17 @@ const App: React.FC = () => {
 
                         {/* Save/Cancel Controls for Admin */}
                         {pendingFile && !isUploadingLogo && (
-                            <div className="absolute -bottom-8 flex gap-2 animate-fade-in">
+                            <div className="absolute -bottom-8 flex gap-2 animate-fade-in z-20">
                                 <button 
                                     onClick={handleSaveLogo}
-                                    className="p-1 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-500 hover:scale-110 transition-all"
+                                    className="p-1.5 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-500 hover:scale-110 transition-all"
                                     title="Save Logo"
                                 >
                                     <CheckCircleIcon className="w-4 h-4" />
                                 </button>
                                  <button 
                                     onClick={handleCancelLogo}
-                                    className="p-1 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-500 hover:scale-110 transition-all"
+                                    className="p-1.5 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-500 hover:scale-110 transition-all"
                                     title="Cancel Upload"
                                 >
                                     <XIcon className="w-4 h-4" />
@@ -399,7 +399,7 @@ const App: React.FC = () => {
                     </div>
 
                     {/* Auth Section */}
-                    <div className="z-10 relative">
+                    <div className="z-10 relative w-full sm:w-auto flex justify-center sm:justify-end">
                       <Auth 
                         user={user} 
                         onLogin={handleLogin} 
@@ -411,12 +411,12 @@ const App: React.FC = () => {
                     </div>
                  </div>
 
-                 {/* Navigation Bar */}
-                 <nav className="max-w-5xl mx-auto bg-white border-b border-x border-gray-200 shadow-lg rounded-b-xl mb-4 relative z-20">
-                   {/* Scroll Container with ref */}
+                 {/* Navigation Bar - Wider max-width and improved desktop spacing */}
+                 <nav className="max-w-7xl mx-auto bg-white border-b border-x border-gray-200 shadow-lg rounded-b-2xl mb-4 relative z-20">
+                   {/* Scroll Container with ref - Center items on desktop */}
                    <div 
                         ref={navScrollRef} 
-                        className="flex justify-start sm:justify-around p-2 space-x-1 overflow-x-auto no-scrollbar scroll-smooth cursor-grab active:cursor-grabbing"
+                        className="flex justify-start sm:justify-center p-2 space-x-1 sm:space-x-3 overflow-x-auto no-scrollbar scroll-smooth cursor-grab active:cursor-grabbing w-full"
                         onMouseDown={(e) => {
                             // Optional: Basic mouse drag to scroll implementation for desktop
                             const slider = navScrollRef.current;
@@ -461,7 +461,7 @@ const App: React.FC = () => {
                  </nav>
              </div>
 
-          <div className="max-w-5xl mx-auto mt-4">
+          <div className="max-w-7xl mx-auto mt-4 w-full">
             {renderView()}
           </div>
         </main>

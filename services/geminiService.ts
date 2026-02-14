@@ -110,13 +110,14 @@ export const getLocalWeather = async (location: GeoLocation | string): Promise<S
 };
 
 export const getMarketPrices = async (commodity: string, category: 'Crop' | 'Livestock' = 'Crop', preferredUnit: string = ''): Promise<ServiceResponse<PriceData[]>> => {
+    // Optimized prompt for speed: condensed instructions
     const unitInstruction = preferredUnit 
-        ? `Strictly find prices for the unit: "${preferredUnit}". If online sources quote a different unit (e.g. per kg, per bowl), CONVERT the price to "${preferredUnit}" based on typical weights (e.g. Maize bag = 100kg) and note this in the unit column. Ensure the data is recent (2025/2026).` 
+        ? `Target Unit: "${preferredUnit}". Convert found prices to this unit. Focus on 2025/2026 data.` 
         : '';
         
     const prompt = category === 'Livestock'
-        ? `Get current (2025/2026) market prices for live ${commodity} in major livestock markets in Ghana. ${unitInstruction} Return JSON. Columns: Market, Price (GHS), Unit (e.g. ${preferredUnit || 'per animal'}), Date, Trend.`
-        : `Get current (2025/2026) market prices for ${commodity} (crop produce) in major markets in Ghana. ${unitInstruction} Return JSON. Columns: Market, Price (GHS), Unit (e.g. ${preferredUnit || 'bag, crate'}), Date, Trend.`;
+        ? `Fast retrieval: Current 2025/2026 market prices for live ${commodity} in Ghana. ${unitInstruction} Return JSON.`
+        : `Fast retrieval: Current 2025/2026 market prices for ${commodity} in Ghana. ${unitInstruction} Return JSON.`;
 
     return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
@@ -124,6 +125,8 @@ export const getMarketPrices = async (commodity: string, category: 'Crop' | 'Liv
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
+                // Optimize for latency by disabling thinking budget
+                thinkingConfig: { thinkingBudget: 0 },
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.ARRAY,

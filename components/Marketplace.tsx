@@ -499,8 +499,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, setActiveView, onRequir
            </div>
        </div>
 
-       {/* Items Grid */}
-       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+       {/* Items Grid - Optimized for Laptop/Desktop (XL screens) */}
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
            {loading ? <p className="col-span-full text-center py-10">Loading marketplace...</p> : 
             filteredItems.map(item => (
                 <Card key={item.id} className="flex flex-col h-full hover:shadow-lg transition-shadow overflow-hidden group">

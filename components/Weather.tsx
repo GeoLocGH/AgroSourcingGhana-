@@ -154,7 +154,8 @@ const Weather: React.FC = () => {
               )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Optimized Grid: 1 col mobile, 2 col sm, 3 col lg */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {forecasts.map((forecast) => (
               <div key={forecast.day} className="bg-slate-800 text-white rounded-xl p-4 shadow-lg flex flex-col gap-3 relative overflow-hidden group hover:scale-[1.01] transition-transform">
                 

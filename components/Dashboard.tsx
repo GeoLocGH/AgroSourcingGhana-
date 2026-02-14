@@ -282,12 +282,12 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
 
   return (
     <div>
-      <div className="flex flex-row justify-between items-center mb-6 bg-green-800 p-5 rounded-xl shadow-lg gap-4">
-        <div className="text-left flex-grow">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-green-800 p-5 rounded-xl shadow-lg gap-4">
+        <div className="text-center md:text-left flex-grow">
            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Welcome!, Mía Woezɔ̃!, Yɛma Mo Akwaaba!</h2>
            <p className="text-green-100">Access localized tools and real-time market data.</p>
         </div>
-        <div className="flex-shrink-0 flex flex-col items-center ml-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
             <span className="text-[10px] uppercase font-bold text-green-200 mb-1 tracking-wider text-center w-full">Partners:</span>
             <div className="bg-white p-2 rounded-lg shadow-md">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/png" className="hidden" />
@@ -363,7 +363,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
           </Card>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Optimized Grid: 1 col mobile, 2 col sm, 3 col lg, 4 col xl */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {features.map((feature) => (
           <Card 
             key={feature.view} 
@@ -397,7 +398,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
             )}
         </Card>
 
-         <Card className="sm:col-span-2 lg:col-span-3 !bg-red-50 !border !border-red-200 hover:!border-red-300">
+         <Card className="sm:col-span-2 lg:col-span-3 xl:col-span-2 !bg-red-50 !border !border-red-200 hover:!border-red-300">
           <div className="flex flex-col gap-4">
               <div className="flex items-start gap-4 border-b border-red-200 pb-4">
                   <div className="p-3 bg-red-600 text-white rounded-full shadow-md animate-pulse">
@@ -436,8 +437,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
           </div>
         </Card>
 
-        {/* Daily Tip Card */}
-        <Card className="flex flex-col items-start p-6 hover:-translate-y-1 !border transition-colors bg-green-50 border-green-100 hover:border-green-300">
+        {/* Daily Tip Card - Full width on mobile/small, auto on larger */}
+        <Card className="flex flex-col items-start p-6 hover:-translate-y-1 !border transition-colors bg-green-50 border-green-100 hover:border-green-300 xl:col-span-1">
             <div className="p-3 rounded-full bg-green-200 text-green-700 mb-3">
                 <SproutIcon className="w-6 h-6" />
             </div>

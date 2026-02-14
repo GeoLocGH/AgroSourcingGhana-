@@ -157,7 +157,7 @@ const PriceAlerts: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-12">
                 <Spinner className={`w-8 h-8 ${isLivestock ? 'text-orange-600' : 'text-green-600'} mb-2`} />
                 <p className={`text-sm font-medium animate-pulse ${isLivestock ? 'text-orange-700' : 'text-green-700'}`}>
-                    AI is scanning 2026 market data for {standardInfo.unit}...
+                    AI is fast-scanning 2026 market data for {standardInfo.unit}...
                 </p>
             </div>
         ) : priceData.length === 0 ? (
