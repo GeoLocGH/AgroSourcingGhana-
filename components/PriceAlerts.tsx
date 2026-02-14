@@ -11,39 +11,40 @@ const LIVESTOCK_GROUPS = [
   'Cow', 'Goat', 'Sheep', 'Chicken', 'Guinea Fowl', 'Turkey', 'Pig', 'Snail', 'Rabbit', 'Tilapia/Catfish', 'Eggs'
 ];
 
-// Baseline reference for alerting logic only (approximate averages in GHS)
-const priceBaselines: Record<Crop, number> = {
-    [Crop.Maize]: 240, // per bag
-    [Crop.Cassava]: 140, // per bag
-    [Crop.Yam]: 380, // per 100 tubers (small)
-    [Crop.Cocoa]: 820, // per bag
-    [Crop.Rice]: 330, // per 50kg
-    [Crop.Tomato]: 100, // per crate (fluctuates heavily)
-    [Crop.Pepper]: 120,
-    [Crop.Okro]: 180,
-    [Crop.Eggplant]: 130,
-    [Crop.Plantain]: 60, // per bunch
-    [Crop.Banana]: 90,
-    [Crop.KpakpoShito]: 220,
-    [Crop.Onion]: 500, // per sack
-    [Crop.Orange]: 150,
-    [Crop.Ginger]: 350,
-    [Crop.Sorghum]: 280,
-    [Crop.Soyabean]: 300,
-    [Crop.Millet]: 290,
-    // Livestock Baselines (Average Unit Price)
-    [Crop.Cow]: 3500,
-    [Crop.Goat]: 450,
-    [Crop.Sheep]: 600,
-    [Crop.Chicken]: 70,
-    [Crop.GuineaFowl]: 90,
-    [Crop.Turkey]: 300,
-    [Crop.Pig]: 800,
-    [Crop.Snail]: 20, // per pack or jumbo size
-    [Crop.Rabbit]: 120,
-    [Crop.Fish]: 45, // per kg
-    [Crop.Eggs]: 50, // per crate
-}
+// Configuration for Standard Units and Baselines (2025/2026 Market Context)
+const commodityStandards: Record<Crop, { baselinePrice: number, unit: string }> = {
+    [Crop.Maize]: { baselinePrice: 750, unit: "100kg bag" },
+    [Crop.Cassava]: { baselinePrice: 280, unit: "Maxi bag (90kg+)" },
+    [Crop.Yam]: { baselinePrice: 2200, unit: "100 tubers (Medium/Large)" },
+    [Crop.Cocoa]: { baselinePrice: 2587, unit: "64kg bag" },
+    [Crop.Rice]: { baselinePrice: 950, unit: "50kg bag (Standard)" },
+    [Crop.Tomato]: { baselinePrice: 3500, unit: "Crate (Large)" },
+    [Crop.Pepper]: { baselinePrice: 1200, unit: "Maxi bag" },
+    [Crop.Okro]: { baselinePrice: 450, unit: "Basket (Standard)" },
+    [Crop.Eggplant]: { baselinePrice: 350, unit: "Bag" },
+    [Crop.Plantain]: { baselinePrice: 120, unit: "Bunch (Large)" },
+    [Crop.Banana]: { baselinePrice: 150, unit: "Carton" },
+    [Crop.KpakpoShito]: { baselinePrice: 800, unit: "Bucket/Small Bag" },
+    [Crop.Onion]: { baselinePrice: 1500, unit: "Maxi bag" },
+    [Crop.Orange]: { baselinePrice: 300, unit: "100 fruits" },
+    [Crop.Ginger]: { baselinePrice: 1100, unit: "Bag" },
+    [Crop.Sorghum]: { baselinePrice: 800, unit: "100kg bag" },
+    [Crop.Soyabean]: { baselinePrice: 900, unit: "100kg bag" },
+    [Crop.Millet]: { baselinePrice: 800, unit: "100kg bag" },
+    
+    // Livestock
+    [Crop.Cow]: { baselinePrice: 9000, unit: "Live Animal (Medium/Large)" },
+    [Crop.Goat]: { baselinePrice: 1100, unit: "Live Animal (Adult)" },
+    [Crop.Sheep]: { baselinePrice: 1800, unit: "Live Animal (Adult)" },
+    [Crop.Chicken]: { baselinePrice: 150, unit: "Live Bird (Layer/Broiler)" },
+    [Crop.GuineaFowl]: { baselinePrice: 180, unit: "Live Bird" },
+    [Crop.Turkey]: { baselinePrice: 650, unit: "Live Bird" },
+    [Crop.Pig]: { baselinePrice: 2200, unit: "Live Animal (Adult)" },
+    [Crop.Snail]: { baselinePrice: 400, unit: "Crate/Pack (Large)" },
+    [Crop.Rabbit]: { baselinePrice: 250, unit: "Live Animal" },
+    [Crop.Fish]: { baselinePrice: 70, unit: "Kg (Fresh Tilapia)" },
+    [Crop.Eggs]: { baselinePrice: 85, unit: "Crate (Large 30pcs)" },
+};
 
 const PriceAlerts: React.FC = () => {
   const [selectedCommodity, setSelectedCommodity] = useState<Crop>(Crop.Maize);
@@ -54,6 +55,7 @@ const PriceAlerts: React.FC = () => {
   const { addNotification } = useNotifications();
 
   const isLivestock = LIVESTOCK_GROUPS.includes(selectedCommodity);
+  const standardInfo = commodityStandards[selectedCommodity] || { baselinePrice: 0, unit: 'Standard Unit' };
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -61,14 +63,18 @@ const PriceAlerts: React.FC = () => {
       setPriceData([]);
       setSources([]);
       try {
-        const response = await getMarketPrices(selectedCommodity, isLivestock ? 'Livestock' : 'Crop');
+        const response = await getMarketPrices(
+            selectedCommodity, 
+            isLivestock ? 'Livestock' : 'Crop', 
+            standardInfo.unit
+        );
         const data = response.data;
         setPriceData(data);
         setSources(response.sources);
         setLastUpdated(new Date().toLocaleString());
         
         // Analyze for Alerts
-        const basePrice = priceBaselines[selectedCommodity];
+        const basePrice = standardInfo.baselinePrice;
         let hasAlert = false;
 
         data.forEach(p => {
@@ -106,7 +112,7 @@ const PriceAlerts: React.FC = () => {
             <h2 className={`text-xl font-bold ${isLivestock ? 'text-orange-800' : 'text-green-800'}`}>
                 {isLivestock ? 'Nationwide Livestock Prices' : 'Nationwide Crop Prices'}
             </h2>
-            <p className="text-xs text-gray-500">Powered by AI Search Grounding • Real-time Data</p>
+            <p className="text-xs text-gray-500">Powered by AI Search Grounding • Real-time 2025/2026 Data</p>
           </div>
       </div>
       
@@ -114,23 +120,29 @@ const PriceAlerts: React.FC = () => {
         <label htmlFor="crop-select" className="block text-sm font-medium text-gray-700 mb-1">
           Select Commodity to Scan:
         </label>
-        <select
-          id="crop-select"
-          value={selectedCommodity}
-          onChange={(e) => setSelectedCommodity(e.target.value as Crop)}
-          className="mt-1 block w-full pl-3 pr-10 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-        >
-            <optgroup label="Crops">
-                {Object.values(Crop).filter(c => !LIVESTOCK_GROUPS.includes(c)).map((crop) => (
-                    <option key={crop} value={crop}>{crop}</option>
-                ))}
-            </optgroup>
-            <optgroup label="Livestock">
-                {Object.values(Crop).filter(c => LIVESTOCK_GROUPS.includes(c)).map((crop) => (
-                    <option key={crop} value={crop}>{crop}</option>
-                ))}
-            </optgroup>
-        </select>
+        <div className="flex gap-2 items-center">
+            <select
+            id="crop-select"
+            value={selectedCommodity}
+            onChange={(e) => setSelectedCommodity(e.target.value as Crop)}
+            className="block w-full pl-3 pr-10 py-3 text-base font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+                <optgroup label="Crops">
+                    {Object.values(Crop).filter(c => !LIVESTOCK_GROUPS.includes(c)).map((crop) => (
+                        <option key={crop} value={crop}>{crop}</option>
+                    ))}
+                </optgroup>
+                <optgroup label="Livestock">
+                    {Object.values(Crop).filter(c => LIVESTOCK_GROUPS.includes(c)).map((crop) => (
+                        <option key={crop} value={crop}>{crop}</option>
+                    ))}
+                </optgroup>
+            </select>
+            <div className="bg-white px-4 py-2 border border-gray-300 rounded-lg hidden sm:block min-w-[140px]">
+                <span className="text-[10px] text-gray-500 uppercase block font-bold">Target Market Unit</span>
+                <span className="text-sm font-bold text-gray-800 truncate" title={standardInfo.unit}>{standardInfo.unit}</span>
+            </div>
+        </div>
       </div>
 
       <div>
@@ -145,7 +157,7 @@ const PriceAlerts: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-12">
                 <Spinner className={`w-8 h-8 ${isLivestock ? 'text-orange-600' : 'text-green-600'} mb-2`} />
                 <p className={`text-sm font-medium animate-pulse ${isLivestock ? 'text-orange-700' : 'text-green-700'}`}>
-                    Scanning markets across Ghana...
+                    AI is scanning 2026 market data for {standardInfo.unit}...
                 </p>
             </div>
         ) : priceData.length === 0 ? (
@@ -165,19 +177,29 @@ const PriceAlerts: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {priceData.map((data, idx) => (
-                            <tr key={idx} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{data.market}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-700">{data.price.toFixed(2)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{data.unit || '-'}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                    {data.trend === 'up' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><ArrowUpIcon className="w-3 h-3 mr-1"/> Up</span>}
-                                    {data.trend === 'down' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"><ArrowDownIcon className="w-3 h-3 mr-1"/> Down</span>}
-                                    {(!data.trend || data.trend === 'stable') && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Stable</span>}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-400">{data.date || 'Recent'}</td>
-                            </tr>
-                        ))}
+                        {priceData.map((data, idx) => {
+                            // Check if returned unit matches expected standard unit roughly
+                            const isUnitMismatch = data.unit && data.unit.toLowerCase() !== standardInfo.unit.toLowerCase();
+                            
+                            return (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{data.market}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-700">{data.price.toFixed(2)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span className={isUnitMismatch ? 'text-orange-600 font-medium' : 'text-gray-500'}>
+                                            {data.unit || standardInfo.unit}
+                                        </span>
+                                        {isUnitMismatch && <span className="block text-[10px] text-orange-500">(Differs from target)</span>}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                        {data.trend === 'up' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><ArrowUpIcon className="w-3 h-3 mr-1"/> Up</span>}
+                                        {data.trend === 'down' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"><ArrowDownIcon className="w-3 h-3 mr-1"/> Down</span>}
+                                        {(!data.trend || data.trend === 'stable') && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Stable</span>}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-400">{data.date || 'Recent'}</td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
@@ -205,7 +227,7 @@ const PriceAlerts: React.FC = () => {
         )}
         
         <div className="mt-4 p-3 bg-blue-50 text-blue-800 text-xs rounded border border-blue-100">
-            <strong>Note:</strong> Prices are aggregated from online sources and may vary from actual on-ground trading. Always confirm before transaction.
+            <strong>Note:</strong> Prices are aggregated from online sources. "Target Market Unit" indicates the unit used for AI scanning. If the source unit differs, it is highlighted in orange. Always confirm prices before transaction.
         </div>
       </div>
     </Card>

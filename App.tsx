@@ -319,7 +319,7 @@ const App: React.FC = () => {
   return (
     <NotificationProvider>
       <GlobalMessageListener user={user} setActiveView={setActiveView} />
-      <div className="min-h-screen bg-gray-900 font-sans text-gray-200 flex flex-col">
+      <div className="min-h-screen min-h-[100dvh] bg-gray-900 font-sans text-gray-200 flex flex-col">
          {/* Main Container */}
         <main className="flex-grow p-4 md:p-6 relative">
              {/* Wrapper for Header and Nav - Scrolls with page (removed sticky) */}

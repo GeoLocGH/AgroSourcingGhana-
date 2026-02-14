@@ -109,10 +109,14 @@ export const getLocalWeather = async (location: GeoLocation | string): Promise<S
     });
 };
 
-export const getMarketPrices = async (commodity: string, category: 'Crop' | 'Livestock' = 'Crop'): Promise<ServiceResponse<PriceData[]>> => {
+export const getMarketPrices = async (commodity: string, category: 'Crop' | 'Livestock' = 'Crop', preferredUnit: string = ''): Promise<ServiceResponse<PriceData[]>> => {
+    const unitInstruction = preferredUnit 
+        ? `Strictly find prices for the unit: "${preferredUnit}". If online sources quote a different unit (e.g. per kg, per bowl), CONVERT the price to "${preferredUnit}" based on typical weights (e.g. Maize bag = 100kg) and note this in the unit column. Ensure the data is recent (2025/2026).` 
+        : '';
+        
     const prompt = category === 'Livestock'
-        ? `Get current market prices for live ${commodity} in major livestock markets in Ghana. Return JSON. Columns: Market, Price (GHS), Unit (e.g. per animal, size), Date, Trend.`
-        : `Get current market prices for ${commodity} (crop produce) in major markets in Ghana. Return JSON. Columns: Market, Price (GHS), Unit (e.g. bag, crate), Date, Trend.`;
+        ? `Get current (2025/2026) market prices for live ${commodity} in major livestock markets in Ghana. ${unitInstruction} Return JSON. Columns: Market, Price (GHS), Unit (e.g. ${preferredUnit || 'per animal'}), Date, Trend.`
+        : `Get current (2025/2026) market prices for ${commodity} (crop produce) in major markets in Ghana. ${unitInstruction} Return JSON. Columns: Market, Price (GHS), Unit (e.g. ${preferredUnit || 'bag, crate'}), Date, Trend.`;
 
     return retryWithBackoffHelper(async () => {
         const response = await ai.models.generateContent({
