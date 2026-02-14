@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 export const HomeIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className || "w-6 h-6"} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -40,52 +40,38 @@ export const SproutIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-export const AgroLogoIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className || "w-12 h-12"} viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="sunGradient" x1="100" y1="0" x2="100" y2="200" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#FCD34D" />
-        <stop offset="1" stopColor="#F59E0B" />
-      </linearGradient>
-      <linearGradient id="fieldGradient" x1="100" y1="100" x2="100" y2="200" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#10B981" />
-        <stop offset="1" stopColor="#047857" />
-      </linearGradient>
-    </defs>
-    
-    {/* Base Circle with Dark Green Background */}
-    <circle cx="100" cy="100" r="96" fill="#064E3B" stroke="#F59E0B" strokeWidth="6"/>
-    
-    {/* Masking for the inner content */}
-    <mask id="circleMask">
-      <circle cx="100" cy="100" r="92" fill="white"/>
-    </mask>
-    
-    <g mask="url(#circleMask)">
-        {/* Sky Background */}
-        <rect x="0" y="0" width="200" height="200" fill="#ECFDF5"/>
-        
-        {/* Rising Sun */}
-        <circle cx="100" cy="70" r="40" fill="url(#sunGradient)" />
-        <circle cx="100" cy="70" r="25" fill="#FEF3C7" opacity="0.4" />
+export const AgroLogoIcon: React.FC<{ className?: string }> = ({ className }) => {
+  const [error, setError] = useState(false);
 
-        {/* Rolling Fields (Abstract Hills) */}
-        <path d="M-20 120 C 50 100, 150 100, 220 120 V 200 H -20 Z" fill="url(#fieldGradient)"/>
-        <path d="M-20 145 C 50 125, 150 125, 220 145 V 200 H -20 Z" fill="#065F46" opacity="0.6"/>
-        
-        {/* Central Tech Sprout Icon */}
-        <path d="M100 190 V 110" stroke="#D1FAE5" strokeWidth="6" strokeLinecap="round" />
-        <path d="M100 135 Q 130 105 150 125 Q 130 145 100 135" fill="#34D399" stroke="#064E3B" strokeWidth="1"/>
-        <path d="M100 135 Q 70 105 50 125 Q 70 145 100 135" fill="#34D399" stroke="#064E3B" strokeWidth="1"/>
-        
-        {/* Small detail: Black Star reference (optional/subtle) at top */}
-        <path d="M100 25 L 104 35 L 115 35 L 106 42 L 109 52 L 100 45 L 91 52 L 94 42 L 85 35 L 96 35 Z" fill="#000000" opacity="0.8"/>
-    </g>
-    
-    {/* Inner Border Highlight */}
-    <circle cx="100" cy="100" r="92" stroke="#FFFFFF" strokeWidth="2" opacity="0.3"/>
-  </svg>
-);
+  if (error) {
+    return (
+      <svg className={className || "w-12 h-12"} viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="ghanaFlag" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0.33" stopColor="#CE1126" />
+            <stop offset="0.33" stopColor="#FCD116" />
+            <stop offset="0.66" stopColor="#FCD116" />
+            <stop offset="0.66" stopColor="#006B3D" />
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r="96" fill="white" stroke="#006B3D" strokeWidth="4"/>
+        <path d="M50 60 H150 V110 C150 145 100 175 100 175 C100 175 50 145 50 110 Z" fill="url(#ghanaFlag)" stroke="#333" strokeWidth="2" opacity="0.95"/>
+        <path transform="translate(100, 105) scale(0.8)" d="M0 -20 L5.88 -1.91 H24.9 L9.51 9.27 L15.39 27.36 L0 16.18 L-15.39 27.36 L-9.51 9.27 L-24.9 -1.91 H-5.88 Z" fill="black"/>
+        <text x="100" y="45" textAnchor="middle" fill="#006B3D" fontSize="24" fontWeight="900" fontFamily="serif" style={{textShadow: "1px 1px 0px #FCD116"}}>AgroSourceGH</text>
+      </svg>
+    );
+  }
+
+  return (
+    <img 
+      src="https://lh3.googleusercontent.com/d/1smv8XMwuiSMy54urSSauXbn7RZlm0nU2"
+      alt="AgroSourceGH Logo"
+      className={className || "w-12 h-12 rounded-full object-cover"}
+      referrerPolicy="no-referrer"
+      onError={() => setError(true)}
+    />
+  );
+};
 
 export const UsersIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className || "w-6 h-6"} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -277,7 +263,7 @@ export const StarIcon: React.FC<{ className?: string }> = ({ className }) => (
 export const TractorIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className || "w-6 h-6"} fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
     <path d="M5 12.5c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5-2.015 4.5-4.5 4.5-4.5-2.015-4.5-4.5z" />
-    <path d="M16.5 14c-1.381 0-2.5 1.119-2.5 2.5s1.119 2.5 2.5 2.5 2.5-1.119 2.5-2.5-1.119-2.5-2.5-1.119-2.5-2.5-2.5z" />
+    <path d="M16.5 14c-1.381 0-2.5 1.119-2.5 2.5s1.119 2.5 2.5 2.5 2.5-1.119 2.5-2.5-1.119-2.5-2.5-1.119-2.5-2.5-1.119-2.5-2.5-1.119-2.5-2.5-2.5z" />
     <path d="M16 6h-5l-1 4h6l-1-4z" />
     <path d="M13.5 4h-3l-1 2h6l-2-2z" />
     <path d="M18 10h-1.5l.5-2h2l-1 2z" />

@@ -44,15 +44,9 @@ const DEFAULT_ADS: AdBanner[] = [
 const DEFAULT_PARTNERS = [
     { 
         id: 'mofa',
-        type: 'component',
-        render: () => (
-            <div className="flex flex-col items-center justify-center h-full w-full bg-white px-1 select-none pointer-events-none">
-                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tighter leading-none">MoFA</h1>
-                <p className="text-[6px] sm:text-[7px] font-extrabold text-gray-600 text-center leading-tight mt-0.5 uppercase tracking-wide">
-                    Ministry of Food & Agriculture
-                </p>
-            </div>
-        )
+        type: 'image',
+        url: 'https://lh3.googleusercontent.com/d/14V0z78S6BJSQAXMOhagn4Su53P8XVBo5',
+        name: 'MoFA'
     },
     { 
         id: 'ghana',
@@ -306,6 +300,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActiveView, user }) => {
                                     src={partner.url} 
                                     alt={partner.name} 
                                     className="w-full h-full object-contain p-1" 
+                                    referrerPolicy="no-referrer"
                                 />
                             ) : (
                                 partner.render()
